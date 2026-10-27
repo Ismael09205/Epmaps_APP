@@ -1,5 +1,6 @@
 ---
 name: sdd-implement
+agent: build
 description: SDD - Implementa una tarea de tasks.md, primero ejecutando las pruebas y luego comprobando los escenarios de la Historia de Usuario.
 ---
 

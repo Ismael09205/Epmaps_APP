@@ -1,6 +1,7 @@
 ---
 name: sdd-plan
 description: SDD — convierte una spec aprobada en un plan de implementación.
+agent: build
 handoffs:
   - label: Implementar una tarea
     agent: sdd-implement
