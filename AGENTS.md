@@ -1,41 +1,91 @@
-This is an Expo/React Native mobile application. Prioritize mobile-first patterns, performance, and cross-platform compatibility.
+# AGENTS.md — Aplicación móvil para el registro de lecturas de medidores de agua de EPMAPS
 
-## Expo has changed — do not trust your training data
+Aplicación móvil para técnicos de EPMAPS que permite registrar lecturas de medidores de agua durante sus recorridos, adjuntar evidencia fotográfica y conservar los registros sin conexión. Los datos pendientes se sincronizan cuando se recupera la conectividad, evitando pérdidas y duplicaciones.
 
-Expo ships breaking changes every SDK release. APIs you remember are likely renamed, moved, or removed. Before writing any code that touches an Expo, EAS, or React Native API:
+## Stack y estructura
 
-1. Read the major version of the `expo` package in `package.json`.
-2. Fetch the matching versioned docs: `https://docs.expo.dev/versions/v<major>.0.0/`
-3. For anything else, fetch https://docs.expo.dev/llms.txt — an index of all Expo docs with corrections to common LLM misconceptions. Follow its links to the specific page you need; never answer from memory.
+- Expo, React Native, TypeScript y Expo Router.
+- Persistencia local para conservar lecturas y datos necesarios para el funcionamiento sin conexión.
+- `src/domain/`: lógica pura del dominio, sin dependencias de React ni del almacenamiento.
+- `src/storage/`: persistencia local.
+- `app/`: pantallas y navegación.
+- Pruebas junto a cada módulo, dentro de `__tests__/`.
+- `docs/constitution.md`: principios y restricciones del proyecto.
+- `docs/historias/`: historias de usuario.
+- `specs/NNN-nombre/`: especificaciones, decisiones, planes, tareas y memoria de cada iniciativa.
+- `.opencode/skills/`: skills específicas del proyecto, como `sdd` y `rn-conventions`.
 
-## Commands
+La estructura real del repositorio y las decisiones aprobadas prevalecen sobre cualquier ejemplo de esta guía.
 
-Use `bunx` instead of `npx` if the project uses bun (`bun.lock` present).
+## Comandos
 
-```bash
-npx expo install <package>  # ALWAYS use instead of npm/yarn/pnpm/bun add — resolves SDK-compatible versions
-npx expo start              # start the dev server
-npx expo lint               # lint
-npx tsc --noEmit            # typecheck
-npx expo-doctor             # diagnose dependency and config issues
-npx expo install --fix      # fix incompatible package versions
-```
+- Ejecutar la aplicación: `npx expo start`.
+- Ejecutar las pruebas: `npx jest`.
+- Verificar TypeScript: `npx tsc --noEmit`.
+- No ejecutar comandos adicionales que alteren dependencias o archivos sin autorización.
 
-Run lint and typecheck before declaring any task done.
+## Convenciones
 
-## Navigation & Routing
+- Código, clases, funciones, variables e identificadores en inglés.
+- Textos visibles de la interfaz, comentarios y documentación en español.
+- Aplicar las reglas funcionales definidas en las historias de usuario (HU) y las especificaciones aprobadas.
+- Las decisiones funcionales se documentan en `specs/NNN-nombre/decisiones.md` y se toman a partir de las HU y las aclaraciones aprobadas.
+- Utilizar las skills pertinentes para cada tarea: `sdd` para el proceso de desarrollo y `rn-conventions` para las pantallas, formularios y componentes de React Native.
+- Mantener una interfaz clara, legible y práctica para técnicos que trabajan en campo.
+- Respetar las convenciones de accesibilidad, adaptación a pantalla y presentación de estados definidas en las skills y especificaciones aprobadas.
 
-- Use **Expo Router** for all navigation. Routes live in `src/app/` — every file there is a screen, `_layout.tsx` files define navigators. Keep non-route code (components, hooks, utils) outside `src/app/`.
-- Import `Link`, `router`, and `useLocalSearchParams` from `expo-router`.
-- Docs: https://docs.expo.dev/router/introduction.md
+## Forma de trabajar
 
-## Building with EAS
+- Leer `MEMORY.md`, `docs/constitution.md` y la especificación activa antes de modificar código.
+- Revisar las HU, decisiones, plan y tareas correspondientes a la iniciativa.
+- Inspeccionar el código existente antes de proponer cambios.
+- Seguir el flujo SDD: decisiones necesarias, especificación, plan, tareas, implementación y validación.
+- Trabajar únicamente en la fase y tarea autorizadas.
+- Implementar una tarea a la vez, salvo que el usuario autorice explícitamente varias.
+- No asumir requisitos funcionales ni tomar decisiones de producto no aprobadas.
+- Si falta una definición necesaria, marcarla como `[NECESITA ACLARACIÓN]` y solicitar aclaración antes de continuar con la parte afectada.
 
-Use EAS to build, sign, and submit the app in the cloud (`eas build`, `eas submit`) and to ship over-the-air updates (`eas update`) — no local Xcode or Android Studio required. Run EAS CLI as `bunx eas-cli <command>` in Bun projects, or `npx eas-cli@latest <command>` otherwise; substitute that for bare `eas` in docs examples.
-Docs: https://docs.expo.dev/eas/index.md
+## Límites
 
-## Rules
+- Priorizar pruebas antes de implementar o modificar lógica de dominio.
+- No instalar dependencias sin autorización.
+- No crear archivos fuera del plan aprobado.
+- No cambiar formatos de datos persistidos sin autorización.
+- No reemplazar archivos existentes sin autorización.
+- No añadir funcionalidades, pantallas ni comportamientos que no estén contemplados en las HU o especificaciones aprobadas.
+- No asumir políticas de sincronización, reintentos, resolución de conflictos ni eliminación de registros que no estén definidas.
+- No perder ni duplicar registros durante la captura, persistencia o sincronización.
+- Mantener la asociación correcta entre cada lectura, su medidor y la evidencia fotográfica correspondiente, cuando aplique.
+- No eliminar ni modificar registros o fotografías existentes sin autorización.
+- No realizar commits sin autorización.
+- No afirmar que una validación pasó si no se ejecutó.
 
-- If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
-- Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
-- Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
+## Memoria
+
+- Al comenzar, leer el `MEMORY.md` de la iniciativa activa.
+- Al terminar una fase SDD o una tarea, actualizar únicamente las secciones `Estado actual` y `Próximos pasos`.
+- Indicar en `Próximos pasos` la siguiente fase o el agente que corresponde ejecutar.
+- No copiar decisiones, especificaciones ni detalles de implementación a la memoria; remitir a los documentos correspondientes.
+- Mantener `MEMORY.md` conciso, con un máximo aproximado de 50 líneas.
+
+## Verificación
+
+- **Lógica:** ejecutar `npx jest` y revisar las pruebas de los módulos afectados.
+- **Tipos:** ejecutar `npx tsc --noEmit` cuando corresponda.
+- **Persistencia:** verificar los escenarios definidos para guardar, recuperar y conservar los registros.
+- **Funcionamiento sin conexión:** comprobar los escenarios aprobados para registrar lecturas sin conectividad y conservar los datos localmente.
+- **Sincronización:** verificar los escenarios definidos para enviar registros pendientes, recuperarse de interrupciones y evitar duplicaciones.
+- **Integridad de datos:** comprobar que cada lectura conserve su asociación correcta con el medidor y la evidencia correspondiente.
+- **Interfaz:** comprobar manualmente la tarea en Expo Go y revisar legibilidad, adaptación a pantalla, accesibilidad y estados interactivos.
+- **Cámara y fotografías:** verificar los permisos y escenarios correspondientes cuando estas funcionalidades estén dentro del alcance de la tarea.
+- Informar los archivos modificados, las pruebas ejecutadas, sus resultados y las comprobaciones pendientes.
+- No marcar como completada una tarea que todavía requiera una validación manual pendiente.
+- No afirmar que el funcionamiento sin conexión o la sincronización son correctos si los escenarios correspondientes no se han verificado.
+
+
+## Skills de calidad
+
+- Utilizar `antislop` para evitar soluciones genéricas y complejidad innecesaria.
+- Cargar las skills anti-slop especializadas según la tarea: código, copywriting, accesibilidad, diseño adaptable o interfaz visual.
+- Leer las instrucciones de cada skill antes de aplicarla.
+- Las skills no autorizan cambios fuera del alcance aprobado ni prevalecen sobre la constitución, las HU, la spec o el plan aprobado.
