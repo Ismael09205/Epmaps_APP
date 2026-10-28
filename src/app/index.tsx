@@ -1,4 +1,4 @@
-import { Link } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useIsMutating, useQuery } from '@tanstack/react-query';
 import { Pressable, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,6 +15,7 @@ import { countUnsentReadings } from '@/storage/readings';
 export default function HomeScreen() {
   const { technician, signOut } = useSession();
   const theme = useTheme();
+  const router = useRouter();
   const employeeCode = technician?.employeeCode ?? '';
   // HU-009 CA-04: se actualiza al guardar registros y al terminar cada envío.
   const pendingQuery = useQuery({
@@ -82,19 +83,18 @@ export default function HomeScreen() {
           </ThemedText>
         </ThemedView>
 
-        <Link href="/medidor" asChild>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Identificar medidor"
-            accessibilityHint="Abre la pantalla para ingresar el código del medidor."
-            style={({ pressed }) => [
-              styles.identifyMeterButton,
-              { backgroundColor: theme.text },
-              pressed && styles.pressed,
-            ]}>
-            <ThemedText style={{ color: theme.background }}>Identificar medidor</ThemedText>
-          </Pressable>
-        </Link>
+        <Pressable
+          onPress={() => router.push('/medidor')}
+          accessibilityRole="button"
+          accessibilityLabel="Identificar medidor"
+          accessibilityHint="Abre la pantalla para ingresar el código del medidor."
+          style={({ pressed }) => [
+            styles.identifyMeterButton,
+            { backgroundColor: theme.text },
+            pressed && styles.pressed,
+          ]}>
+          <ThemedText style={{ color: theme.background }}>Identificar medidor</ThemedText>
+        </Pressable>
       </SafeAreaView>
     </ThemedView>
   );
