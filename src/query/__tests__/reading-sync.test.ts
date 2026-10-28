@@ -4,14 +4,15 @@ jest.mock('@/storage/readings', () => ({
 }));
 
 jest.mock('@/api/readings', () => ({
+  ...jest.requireActual('@/api/readings'),
   postReading: jest.fn(),
 }));
 
-import { postReading } from '@/api/readings';
+import { postReading, ReadingNetworkError } from '@/api/readings';
 import type { MeterReading } from '@/domain/reading';
 import { listUnsentReadings, markReadingSent } from '@/storage/readings';
 
-import { sendPendingReadings } from '../reading-sync';
+import { sendPendingReadings, shouldRetrySync, syncRetryDelay } from '../reading-sync';
 
 const mockedList = listUnsentReadings as jest.Mock;
 const mockedMarkSent = markReadingSent as jest.Mock;
@@ -48,6 +49,21 @@ beforeEach(() => {
   mockedList.mockReset();
   mockedMarkSent.mockReset().mockResolvedValue(1);
   mockedPost.mockReset().mockResolvedValue(undefined);
+});
+
+describe('política de reintentos', () => {
+  it('reintenta hasta 3 veces solo los fallos de red, esperando 2, 4 y 8 s', () => {
+    const networkError = new ReadingNetworkError(new Error('fetch failed'));
+
+    expect([0, 1, 2, 3].map((count) => shouldRetrySync(count, networkError))).toEqual([
+      true,
+      true,
+      true,
+      false,
+    ]);
+    expect(shouldRetrySync(0, new Error('HTTP 500'))).toBe(false);
+    expect([0, 1, 2].map(syncRetryDelay)).toEqual([2000, 4000, 8000]);
+  });
 });
 
 describe('sendPendingReadings', () => {

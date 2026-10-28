@@ -9,16 +9,29 @@ export class ReadingApiError extends Error {
   }
 }
 
+// El servidor no fue alcanzable (sin red o sin resolver el nombre del servidor).
+export class ReadingNetworkError extends Error {
+  constructor(readonly originalError: unknown) {
+    super('No se pudo conectar con el servidor de lecturas.');
+    this.name = 'ReadingNetworkError';
+  }
+}
+
 // HU-009: el UUID del registro identifica el envío; el servidor garantiza la idempotencia.
 export async function postReading(payload: ReadingPayload): Promise<void> {
-  const response = await fetch(READINGS_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Idempotency-Key': payload.readingId,
-    },
-    body: JSON.stringify(payload),
-  });
+  let response: Response;
+  try {
+    response = await fetch(READINGS_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': payload.readingId,
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    throw new ReadingNetworkError(error);
+  }
 
   if (!response.ok) {
     throw new ReadingApiError(`El envío de la lectura falló con HTTP ${response.status}.`);

@@ -1,4 +1,4 @@
-import { postReading, ReadingApiError } from '../readings';
+import { postReading, ReadingApiError, ReadingNetworkError } from '../readings';
 import type { ReadingPayload } from '@/domain/reading-sync';
 
 const payload = {
@@ -31,5 +31,11 @@ describe('postReading', () => {
     fetchMock.mockResolvedValue({ ok: false, status: 500 } as Response);
 
     await expect(postReading(payload)).rejects.toThrow(ReadingApiError);
+  });
+
+  it('distingue la falta de acceso al servidor de un error HTTP', async () => {
+    fetchMock.mockRejectedValue(new Error('fetch failed: No address associated with hostname'));
+
+    await expect(postReading(payload)).rejects.toThrow(ReadingNetworkError);
   });
 });

@@ -5,7 +5,7 @@ import { normalizeMeterCode } from '@/domain/meter-code';
 import { verifyPendingReadings } from '@/storage/readings';
 
 import { isNetworkStateOnline } from './query-client';
-import { syncPendingReadings } from './reading-sync';
+import { isNetworkError, syncPendingReadings } from './reading-sync';
 
 const METER_READINGS_QUERY_PREFIX = ['meter-readings'] as const;
 
@@ -30,6 +30,11 @@ export function setupReadingVerification(client: QueryClient): () => void {
       })
       .then(() => syncPendingReadings(client))
       .catch((error: unknown) => {
+        // Sin red tras los reintentos, los registros siguen pendientes hasta la próxima reconexión.
+        if (isNetworkError(error)) {
+          console.warn('Lecturas pendientes sin enviar: no hay acceso al servidor.', error);
+          return;
+        }
         console.error('No se pudieron enviar las lecturas pendientes.', error);
       });
   };
