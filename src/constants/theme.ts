@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 // Paleta EPMAPS: blanco dominante, #243376 para texto y estructura, #1E72BA solo para la acción
 // principal. Los tonos de aviso (éxito, advertencia, error) se agregan porque el técnico debe
 // distinguir el tipo de mensaje de un vistazo en campo; siempre van acompañados de un icono.
+// `brand` es el azul institucional fijo en ambos modos para los bloques de identidad.
 export const Colors = {
   light: {
     text: '#243376',
@@ -24,6 +25,9 @@ export const Colors = {
     warningForeground: '#8A5A00',
     errorBackground: '#FDECEA',
     errorForeground: '#B3261E',
+    brand: '#243376',
+    onBrand: '#FFFFFF',
+    onBrandSecondary: '#C9D3EE',
   },
   dark: {
     text: '#FFFFFF',
@@ -43,6 +47,9 @@ export const Colors = {
     warningForeground: '#F2C46B',
     errorBackground: '#3B1517',
     errorForeground: '#FFB4AB',
+    brand: '#243376',
+    onBrand: '#FFFFFF',
+    onBrandSecondary: '#C9D3EE',
   },
 } as const;
 
@@ -82,6 +89,20 @@ export const Spacing = {
   five: 32,
   six: 64,
 } as const;
+
+// Escala de radios por rol: sm para controles, md para paneles, lg para bloques de marca.
+export const Radius = {
+  sm: 8,
+  md: 12,
+  lg: 16,
+  pill: 999,
+} as const;
+
+// Margen horizontal de pantalla, igual en todas las vistas.
+export const ScreenPadding = 20;
+
+// Límite de escalado de texto en botones y etiquetas de interfaz; el texto de lectura escala libre.
+export const ChromeFontScale = 1.4;
 
 export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
 export const MaxContentWidth = 800;

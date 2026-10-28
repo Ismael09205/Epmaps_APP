@@ -48,6 +48,24 @@
       "sourceType": "github",
       "skillPath": "skills/productivity/grilling/SKILL.md",
       "computedHash": "c3b3e67f18495984385413bc6be7e2acbf2139c6cf52ef42abdda7242a791822"
+    },
+    "mobile-design-system": {
+      "source": "draftbit/mobile-taste-skill",
+      "sourceType": "github",
+      "skillPath": "skills/mobile-design-system/SKILL.md",
+      "computedHash": "3d1b31ac60abb3032e99e096b1aa6b565db769878bc924ed43fa9701cf2f237a"
+    },
+    "mobile-redesign-screen": {
+      "source": "draftbit/mobile-taste-skill",
+      "sourceType": "github",
+      "skillPath": "skills/mobile-redesign-screen/SKILL.md",
+      "computedHash": "23f0907d0ad9e704e255739b23d31a91c391931a571b15ea7967ab91d32c7685"
+    },
+    "mobile-taste": {
+      "source": "draftbit/mobile-taste-skill",
+      "sourceType": "github",
+      "skillPath": "skills/mobile-taste/SKILL.md",
+      "computedHash": "930569ff4218c770683592a3ba1d84d043b600c4ed7a0a754e0c39259f24fcf1"
     }
   }
 }

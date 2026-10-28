@@ -1,24 +1,21 @@
 import { useRouter } from 'expo-router';
 import { useIsMutating, useQuery } from '@tanstack/react-query';
 import {
-  CalendarCheck,
-  Camera,
   CircleAlert,
   CircleCheck,
   CloudOff,
   CloudUpload,
   Gauge,
   LogOut,
-  WifiOff,
 } from 'lucide-react-native';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useSession } from '@/auth/session-context';
 import { useIsOnline } from '@/components/connection-banner';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
+import { ChromeFontScale, Radius, ScreenPadding, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { pendingSyncCountQueryKey, READING_SYNC_MUTATION_KEY } from '@/query/reading-sync';
 import { countUnsentReadings } from '@/storage/readings';
@@ -35,19 +32,27 @@ const TODAY_FORMAT = new Intl.DateTimeFormat('es-EC', {
   month: 'long',
 });
 
-// Reglas de las HU que el técnico necesita recordar antes de salir a campo.
-const FIELD_RULES = [
+// Consejos prácticos para el técnico en campo; incluyen las reglas de las HU que debe recordar.
+const FIELD_TIPS = [
   {
-    Icon: CalendarCheck,
-    text: 'Un registro por medidor al mes. Mientras no se envíe, puede modificarlo.',
+    title: 'Lea el visor de frente',
+    text: 'Limpie el vidrio y lea de izquierda a derecha. Los números negros son metros cúbicos; los rojos, decimales.',
   },
   {
-    Icon: Camera,
-    text: 'La foto es obligatoria si el medidor está dañado o el consumo supera el triple del promedio.',
+    title: 'Confirme que es el medidor correcto',
+    text: 'Compare el código MED de la etiqueta y la dirección de la ficha antes de registrar.',
   },
   {
-    Icon: WifiOff,
-    text: 'Sin señal, los registros se guardan en el teléfono y se envían solos al volver la conexión.',
+    title: 'Tome una foto nítida',
+    text: 'Encuadre el visor completo y evite reflejos. Es obligatoria si el medidor está dañado o el consumo supera el triple del promedio.',
+  },
+  {
+    title: 'Si no puede llegar al medidor',
+    text: 'Elija Inaccesible y anote el motivo concreto: puerta cerrada, perro suelto, medidor cubierto.',
+  },
+  {
+    title: 'Sin señal, siga trabajando',
+    text: 'La lectura queda guardada en el teléfono y se envía sola al volver la conexión. Un registro por medidor al mes; puede corregirlo mientras no se envíe.',
   },
 ] as const;
 
@@ -59,6 +64,7 @@ export default function HomeScreen() {
   const { technician, signOut } = useSession();
   const theme = useTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const employeeCode = technician?.employeeCode ?? '';
   // HU-009 CA-04: se actualiza al guardar registros y al terminar cada envío.
   const pendingQuery = useQuery({
@@ -79,26 +85,22 @@ export default function HomeScreen() {
   const now = new Date();
   const pendingStatus = pendingQuery.isError
     ? {
-        tone: theme.errorForeground,
         Icon: CircleAlert,
         text: 'No se pudo consultar la cantidad de lecturas pendientes.',
       }
     : isSyncing && isOnline
-      ? { tone: theme.infoForeground, Icon: null, text: 'Enviando lecturas…' }
+      ? { Icon: null, text: 'Enviando lecturas…' }
       : pendingCount === 0
         ? {
-            tone: theme.successForeground,
             Icon: CircleCheck,
             text: 'Todas las lecturas fueron enviadas.',
           }
         : isOnline
           ? {
-              tone: theme.infoForeground,
               Icon: CloudUpload,
               text: 'Se envían automáticamente con conexión.',
             }
           : {
-              tone: theme.warningForeground,
               Icon: CloudOff,
               text: 'Se enviarán al recuperar la conexión.',
             };
@@ -106,17 +108,24 @@ export default function HomeScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
+      <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.header}>
             <View style={styles.identity}>
-              <ThemedText type="small" themeColor="textSecondary">
+              <ThemedText type="caption" themeColor="infoForeground">
                 {capitalize(TODAY_FORMAT.format(now))}
               </ThemedText>
-              <ThemedText type="subtitle">{`${technician.name} ${technician.surname}`}</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                {`Código de empleado ${technician.employeeCode}`}
+              <ThemedText type="heading" numberOfLines={2}>
+                {`${technician.name} ${technician.surname}`}
               </ThemedText>
+              <View style={styles.employeeRow}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Código de empleado
+                </ThemedText>
+                <ThemedText type="data" style={styles.employeeCode}>
+                  {technician.employeeCode}
+                </ThemedText>
+              </View>
             </View>
 
             <Pressable
@@ -124,82 +133,107 @@ export default function HomeScreen() {
               accessibilityRole="button"
               accessibilityLabel="Cerrar sesión"
               hitSlop={Spacing.two}
-              style={({ pressed }) => [
-                styles.signOutButton,
-                { borderColor: theme.border },
-                pressed && styles.pressed,
-              ]}>
-              <LogOut color={theme.text} size={18} />
-              <ThemedText type="small">Salir</ThemedText>
+              style={({ pressed }) => [styles.signOutButton, pressed && styles.pressed]}>
+              <LogOut color={theme.textSecondary} size={18} />
+              <ThemedText
+                type="smallBold"
+                themeColor="textSecondary"
+                maxFontSizeMultiplier={ChromeFontScale}>
+                Salir
+              </ThemedText>
             </Pressable>
           </View>
 
-          <View
-            style={[
-              styles.actionPanel,
-              { backgroundColor: theme.backgroundElement, borderColor: theme.border },
-            ]}>
-            <View style={[styles.periodRule, { backgroundColor: theme.accent }]} />
-            <View style={styles.actionBody}>
-              <ThemedText type="small" themeColor="textSecondary">
+          {/* Elemento distintivo de la pantalla: el período en curso y el estado de envío. */}
+          <View style={[styles.periodPanel, { backgroundColor: theme.brand }]}>
+            <View style={styles.periodBlock}>
+              <ThemedText type="caption" style={{ color: theme.onBrandSecondary }}>
                 Período de lectura
               </ThemedText>
-              <ThemedText type="subtitle">{capitalize(PERIOD_FORMAT.format(now))}</ThemedText>
-              <ThemedText themeColor="textSecondary">
-                Ingrese el código MED de la etiqueta para ver la ficha del medidor y registrar su
-                lectura.
+              <ThemedText type="heading" style={{ color: theme.onBrand }}>
+                {capitalize(PERIOD_FORMAT.format(now))}
               </ThemedText>
-              <Pressable
-                onPress={() => router.push('/medidor')}
-                accessibilityRole="button"
-                accessibilityLabel="Identificar medidor"
-                accessibilityHint="Abre la pantalla para ingresar el código del medidor."
-                style={({ pressed }) => [
-                  styles.identifyMeterButton,
-                  { backgroundColor: theme.accent },
-                  pressed && styles.pressed,
-                ]}>
-                <Gauge color={theme.onAccent} size={22} />
-                <ThemedText type="smallBold" style={[styles.buttonLabel, { color: theme.onAccent }]}>
-                  Identificar medidor
+            </View>
+
+            <View style={[styles.periodDivider, { backgroundColor: theme.onBrandSecondary }]} />
+
+            <View accessibilityLiveRegion="polite" style={styles.pendingRow}>
+              <View style={styles.pendingFigure}>
+                <ThemedText type="display" style={{ color: theme.onBrand }}>
+                  {pendingCount === undefined ? '…' : String(pendingCount)}
                 </ThemedText>
-              </Pressable>
+                <ThemedText type="caption" style={{ color: theme.onBrandSecondary }}>
+                  Pendientes de envío
+                </ThemedText>
+              </View>
+              <View style={styles.pendingStatus}>
+                {StatusIcon ? (
+                  <StatusIcon color={theme.onBrand} size={18} />
+                ) : (
+                  <ActivityIndicator color={theme.onBrand} size="small" />
+                )}
+                <ThemedText type="small" style={[styles.flexText, { color: theme.onBrand }]}>
+                  {pendingStatus.text}
+                </ThemedText>
+              </View>
             </View>
           </View>
 
-          <View
-            accessibilityLiveRegion="polite"
-            style={[styles.pendingBox, { borderColor: theme.border }]}>
-            <View style={styles.pendingHeader}>
-              <ThemedText type="smallBold">Lecturas pendientes de envío</ThemedText>
-              <ThemedText style={styles.pendingCount}>
-                {pendingCount === undefined ? '…' : String(pendingCount)}
+          <View style={styles.tips}>
+            <View style={styles.tipsHeader}>
+              <ThemedText type="caption" themeColor="infoForeground">
+                Antes de registrar
               </ThemedText>
+              <ThemedText type="heading">Consejos para el técnico</ThemedText>
             </View>
-            <View style={styles.pendingStatus}>
-              {StatusIcon ? (
-                <StatusIcon color={pendingStatus.tone} size={18} />
-              ) : (
-                <ActivityIndicator color={pendingStatus.tone} size="small" />
-              )}
-              <ThemedText type="small" themeColor="textSecondary" style={styles.flexText}>
-                {pendingStatus.text}
-              </ThemedText>
-            </View>
-          </View>
-
-          <View style={styles.rules}>
-            <ThemedText type="smallBold">Antes de registrar</ThemedText>
-            {FIELD_RULES.map(({ Icon, text }) => (
-              <View key={text} style={[styles.rule, { borderTopColor: theme.border }]}>
-                <Icon color={theme.infoForeground} size={20} />
-                <ThemedText type="small" style={styles.flexText}>
-                  {text}
+            {FIELD_TIPS.map(({ title, text }, index) => (
+              <View key={title} style={[styles.tip, { borderTopColor: theme.border }]}>
+                <ThemedText type="data" themeColor="accent" style={styles.tipNumber}>
+                  {String(index + 1).padStart(2, '0')}
                 </ThemedText>
+                <View style={styles.tipBody}>
+                  <ThemedText type="smallBold">{title}</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {text}
+                  </ThemedText>
+                </View>
               </View>
             ))}
           </View>
         </ScrollView>
+
+        {/* Acción principal fija en la zona del pulgar. */}
+        <View
+          style={[
+            styles.footer,
+            {
+              backgroundColor: theme.background,
+              borderTopColor: theme.border,
+              paddingBottom: insets.bottom + Spacing.three,
+            },
+          ]}>
+          <ThemedText type="small" themeColor="textSecondary">
+            Tenga a mano la etiqueta MED del medidor.
+          </ThemedText>
+          <Pressable
+            onPress={() => router.push('/medidor')}
+            accessibilityRole="button"
+            accessibilityLabel="Identificar medidor"
+            accessibilityHint="Abre la pantalla para ingresar el código del medidor."
+            style={({ pressed }) => [
+              styles.identifyMeterButton,
+              { backgroundColor: pressed ? theme.brand : theme.accent },
+              pressed && styles.pressed,
+            ]}>
+            <Gauge color={theme.onAccent} size={22} />
+            <ThemedText
+              type="smallBold"
+              maxFontSizeMultiplier={ChromeFontScale}
+              style={[styles.buttonLabel, { color: theme.onAccent }]}>
+              Identificar medidor
+            </ThemedText>
+          </Pressable>
+        </View>
       </SafeAreaView>
     </ThemedView>
   );
@@ -213,7 +247,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingHorizontal: Spacing.four,
+    paddingHorizontal: ScreenPadding,
     paddingTop: Spacing.four,
     paddingBottom: Spacing.five,
     gap: Spacing.four,
@@ -228,36 +262,83 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
     flexShrink: 1,
   },
+  employeeRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  employeeCode: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
   signOutButton: {
     minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
-    borderRadius: Spacing.two,
-    borderWidth: 1,
-    paddingHorizontal: Spacing.three,
+    gap: Spacing.one + Spacing.half,
+    paddingLeft: Spacing.two,
   },
-  actionPanel: {
+  periodPanel: {
+    borderRadius: Radius.lg,
+    padding: Spacing.four - Spacing.one,
+    gap: Spacing.three,
+  },
+  periodBlock: {
+    gap: Spacing.one,
+  },
+  periodDivider: {
+    height: StyleSheet.hairlineWidth,
+    opacity: 0.6,
+  },
+  pendingRow: {
     flexDirection: 'row',
-    borderWidth: 1,
-    borderRadius: Spacing.three,
-    overflow: 'hidden',
+    alignItems: 'flex-end',
+    gap: Spacing.three,
   },
-  // Línea vertical de acento: el motivo que marca el bloque de trabajo del período.
-  periodRule: {
-    width: 4,
+  pendingFigure: {
+    gap: Spacing.half,
   },
-  actionBody: {
+  pendingStatus: {
     flex: 1,
-    padding: Spacing.four,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.two,
+    paddingBottom: Spacing.half,
+  },
+  tips: {
+    gap: Spacing.one,
+  },
+  tipsHeader: {
+    gap: Spacing.one,
+    marginBottom: Spacing.two,
+  },
+  // Lista agrupada con divisores finos en lugar de tarjetas.
+  tip: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.three,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingVertical: Spacing.three,
+  },
+  tipNumber: {
+    minWidth: 24,
+  },
+  tipBody: {
+    flex: 1,
+    gap: Spacing.half,
+  },
+  footer: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: ScreenPadding,
+    paddingTop: Spacing.three,
     gap: Spacing.two,
   },
   identifyMeterButton: {
-    marginTop: Spacing.two,
     minHeight: 56,
     flexDirection: 'row',
     gap: Spacing.two,
-    borderRadius: Spacing.two,
+    borderRadius: Radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: Spacing.three,
@@ -265,43 +346,10 @@ const styles = StyleSheet.create({
   buttonLabel: {
     fontSize: 16,
   },
-  pendingBox: {
-    borderWidth: 1,
-    borderRadius: Spacing.three,
-    padding: Spacing.three,
-    gap: Spacing.two,
-  },
-  pendingHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.three,
-  },
-  pendingCount: {
-    fontSize: 32,
-    lineHeight: 38,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-  },
-  pendingStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-  },
-  rules: {
-    gap: Spacing.two,
-  },
-  rule: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.three,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: Spacing.three,
-  },
   flexText: {
     flex: 1,
   },
   pressed: {
-    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
   },
 });

@@ -4,7 +4,19 @@ import { Fonts, ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type ThemedTextProps = TextProps & {
-  type?: 'default' | 'title' | 'small' | 'smallBold' | 'subtitle' | 'link' | 'linkPrimary' | 'code';
+  type?:
+    | 'default'
+    | 'title'
+    | 'small'
+    | 'smallBold'
+    | 'subtitle'
+    | 'link'
+    | 'linkPrimary'
+    | 'code'
+    | 'heading'
+    | 'caption'
+    | 'data'
+    | 'display';
   themeColor?: ThemeColor;
 };
 
@@ -23,6 +35,10 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }: The
         type === 'link' && styles.link,
         type === 'linkPrimary' && styles.linkPrimary,
         type === 'code' && styles.code,
+        type === 'heading' && styles.heading,
+        type === 'caption' && styles.caption,
+        type === 'data' && styles.data,
+        type === 'display' && styles.display,
         style,
       ]}
       {...rest}
@@ -69,5 +85,36 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.mono,
     fontWeight: Platform.select({ android: 700 }) ?? 500,
     fontSize: 12,
+  },
+  // Título de pantalla o sección.
+  heading: {
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: 700,
+    includeFontPadding: false,
+  },
+  // Rótulo de sección o de dato: mayúsculas con espaciado.
+  caption: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: 700,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  // Cifras: lecturas, códigos y conteos en monoespaciado con dígitos tabulares.
+  data: {
+    fontFamily: Fonts.mono,
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: 700,
+    fontVariant: ['tabular-nums'],
+  },
+  display: {
+    fontFamily: Fonts.mono,
+    fontSize: 34,
+    lineHeight: 40,
+    fontWeight: 700,
+    fontVariant: ['tabular-nums'],
+    includeFontPadding: false,
   },
 });
