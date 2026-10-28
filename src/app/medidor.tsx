@@ -453,9 +453,11 @@ export default function MeterScreen() {
                     <MeterDetail label="Estado" value={displayedMeter.status} />
                     <MeterDetail
                       label="Última lectura"
-                      value={`${displayedMeter.lastReading}, ${formatMeterReadingDate(
-                        displayedMeter.lastReadingDate,
-                      )}`}
+                      value={`${displayedMeter.lastReading} ${displayedMeter.monthlyAverageConsumptionUnit}`}
+                    />
+                    <MeterDetail
+                      label="Fecha de última lectura"
+                      value={formatMeterReadingDate(displayedMeter.lastReadingDate)}
                     />
                     <MeterDetail
                       label="Consumo promedio mensual"
