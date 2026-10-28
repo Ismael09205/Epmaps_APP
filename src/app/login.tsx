@@ -6,24 +6,22 @@ import {
   ScrollView,
   StyleSheet,
   TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useSession } from '@/auth/session-context';
+import { Notice } from '@/components/notice';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 
 const EMPTY_MESSAGE = 'El código de empleado y la clave son obligatorios';
 const INVALID_MESSAGE = 'Credenciales inválidas';
 
-const ERROR_COLOR = { light: '#B3261E', dark: '#FFB4AB' } as const;
-
 export default function LoginScreen() {
   const { signIn } = useSession();
-  const scheme = useColorScheme();
   const theme = useTheme();
   const [employeeCode, setEmployeeCode] = useState('');
   const [password, setPassword] = useState('');
@@ -48,7 +46,7 @@ export default function LoginScreen() {
 
   const inputStyle = [
     styles.input,
-    { backgroundColor: theme.backgroundElement, color: theme.text, borderColor: theme.textSecondary },
+    { backgroundColor: theme.background, color: theme.text, borderColor: theme.inputBorder },
   ];
 
   return (
@@ -58,12 +56,18 @@ export default function LoginScreen() {
           style={styles.keyboardView}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-            <ThemedView style={styles.header}>
-              <ThemedText type="subtitle">Identificación</ThemedText>
-              <ThemedText themeColor="textSecondary">
-                Registro de lecturas de medidores EPMAPS
-              </ThemedText>
-            </ThemedView>
+            <View style={styles.header}>
+              <View style={[styles.brandRule, { backgroundColor: theme.accent }]} />
+              <View style={styles.headerText}>
+                <ThemedText type="smallBold" style={{ color: theme.infoForeground }}>
+                  EPMAPS
+                </ThemedText>
+                <ThemedText type="subtitle">Identificación del técnico</ThemedText>
+                <ThemedText themeColor="textSecondary">
+                  Registro de lecturas de medidores de agua
+                </ThemedText>
+              </View>
+            </View>
 
             <ThemedView style={styles.form}>
               <ThemedView style={styles.field}>
@@ -97,13 +101,7 @@ export default function LoginScreen() {
                 />
               </ThemedView>
 
-              {errorMessage !== null && (
-                <ThemedText
-                  accessibilityLiveRegion="polite"
-                  style={[styles.errorMessage, { color: ERROR_COLOR[scheme === 'dark' ? 'dark' : 'light'] }]}>
-                  {errorMessage}
-                </ThemedText>
-              )}
+              {errorMessage !== null && <Notice tone="error">{errorMessage}</Notice>}
 
               <Pressable
                 onPress={handleSubmit}
@@ -112,11 +110,13 @@ export default function LoginScreen() {
                 accessibilityLabel="Ingresar"
                 style={({ pressed }) => [
                   styles.submitButton,
-                  { backgroundColor: theme.text },
+                  { backgroundColor: theme.accent },
                   pressed && styles.pressed,
                   isSubmitting && styles.disabled,
                 ]}>
-                <ThemedText style={{ color: theme.background }}>Ingresar</ThemedText>
+                <ThemedText type="smallBold" style={[styles.buttonLabel, { color: theme.onAccent }]}>
+                  Ingresar
+                </ThemedText>
               </Pressable>
             </ThemedView>
           </ScrollView>
@@ -144,6 +144,16 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.five,
   },
   header: {
+    flexDirection: 'row',
+    gap: Spacing.three,
+  },
+  // Línea vertical de acento, el mismo motivo que el bloque de trabajo de la pantalla principal.
+  brandRule: {
+    width: 4,
+    borderRadius: 2,
+  },
+  headerText: {
+    flex: 1,
     gap: Spacing.one,
   },
   form: {
@@ -160,18 +170,18 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     fontSize: 16,
   },
-  errorMessage: {
-    lineHeight: 22,
-  },
   submitButton: {
-    minHeight: 48,
+    minHeight: 52,
     borderRadius: Spacing.two,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: Spacing.four,
   },
+  buttonLabel: {
+    fontSize: 16,
+  },
   pressed: {
-    opacity: 0.7,
+    opacity: 0.8,
   },
   disabled: {
     opacity: 0.5,

@@ -4,7 +4,6 @@ import { useLocalSearchParams } from 'expo-router';
 import { MaskedTextInput } from 'react-native-mask-text';
 import { onlineManager, useIsMutating, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ActivityIndicator,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -15,8 +14,17 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  Check,
+  CircleCheck,
+  CloudUpload,
+  Gauge,
+  Pencil,
+  Search,
+} from 'lucide-react-native';
 
 import { MeterPhotoCapture } from '@/components/meter-photo-capture';
+import { Notice } from '@/components/notice';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
@@ -303,7 +311,7 @@ export default function MeterScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
         <KeyboardAvoidingView
           style={styles.keyboardView}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -316,11 +324,11 @@ export default function MeterScreen() {
                 style={[
                   styles.inputRow,
                   {
-                    backgroundColor: theme.backgroundElement,
-                    borderColor: theme.textSecondary,
+                    backgroundColor: theme.background,
+                    borderColor: theme.inputBorder,
                   },
                 ]}>
-                <ThemedText style={styles.prefix}>MED-</ThemedText>
+                <ThemedText style={[styles.prefix, { color: theme.infoForeground }]}>MED-</ThemedText>
                 <MaskedTextInput
                   accessibilityLabel="Seis dígitos del código del medidor"
                   accessibilityHint="El prefijo MED aparece antes del campo."
@@ -335,7 +343,12 @@ export default function MeterScreen() {
                 />
               </View>
               {status === 'valid' ? (
-                <ThemedText accessibilityLiveRegion="polite">Código válido.</ThemedText>
+                <View style={styles.inlineStatus} accessibilityLiveRegion="polite">
+                  <CircleCheck color={theme.successForeground} size={16} />
+                  <ThemedText type="small" style={{ color: theme.successForeground }}>
+                    Código válido.
+                  </ThemedText>
+                </View>
               ) : status === 'incomplete' ? (
                 <ThemedText themeColor="textSecondary" accessibilityLiveRegion="polite">
                   Ingrese los seis dígitos de la etiqueta.
@@ -353,10 +366,15 @@ export default function MeterScreen() {
                   onPress={handleConsult}
                   style={({ pressed }) => [
                     styles.consultButton,
-                    { backgroundColor: theme.text },
+                    styles.buttonRow,
+                    { backgroundColor: theme.accent },
                     pressed && styles.pressed,
+                    !canConsult && styles.disabled,
                   ]}>
-                  <ThemedText style={{ color: theme.background }}>Consultar</ThemedText>
+                  <Search color={theme.onAccent} size={20} />
+                  <ThemedText type="smallBold" style={[styles.buttonLabel, { color: theme.onAccent }]}>
+                    Consultar
+                  </ThemedText>
                 </Pressable>
 
                 {currentLookup === null && (
@@ -368,70 +386,63 @@ export default function MeterScreen() {
                 {currentLookup !== null && (
                   <View accessibilityLiveRegion="polite" style={styles.feedback}>
                     {currentLookup === 'loading' && !meterEntry && (
-                      <View style={styles.loading}>
-                        <ActivityIndicator
-                          color={theme.text}
-                          size="small"
-                          accessibilityLabel="Consultando datos del medidor"
-                        />
-                        <ThemedText>Consultando datos del medidor…</ThemedText>
-                      </View>
+                      <Notice tone="loading">Consultando datos del medidor…</Notice>
                     )}
                     {currentLookup === 'success' && (
-                      <ThemedText>Datos del medidor consultados.</ThemedText>
+                      <Notice tone="success">Datos del medidor consultados.</Notice>
                     )}
                     {currentLookup === 'offline-cache' && (
-                      <ThemedText>
+                      <Notice tone="warning">
                         Sin conexión. La información guardada puede estar desactualizada.
-                      </ThemedText>
+                      </Notice>
                     )}
                     {currentLookup === 'offline-empty' && (
-                      <ThemedText>
+                      <Notice tone="warning">
                         Sin conexión. No hay datos actuales disponibles.
-                      </ThemedText>
+                      </Notice>
                     )}
                     {currentLookup === 'not-found' && (
-                      <ThemedText>
+                      <Notice tone={meterEntry ? 'warning' : 'error'}>
                         {meterEntry
                           ? 'La oficina no encontró el medidor. Se conserva la ficha anterior, que puede estar desactualizada.'
                           : 'La oficina no encontró el medidor.'}
-                      </ThemedText>
+                      </Notice>
                     )}
                     {currentLookup === 'ambiguous' && (
-                      <ThemedText>
+                      <Notice tone={meterEntry ? 'warning' : 'error'}>
                         {meterEntry
                           ? 'La oficina devolvió más de un registro. Se conserva la ficha anterior, que puede estar desactualizada.'
                           : 'La oficina devolvió más de un registro para este medidor. No se actualizó la ficha.'}
-                      </ThemedText>
+                      </Notice>
                     )}
                     {currentLookup === 'error' && (
-                      <ThemedText>
+                      <Notice tone={meterEntry ? 'warning' : 'error'}>
                         {meterEntry
                           ? 'No se pudo actualizar la información. Se conserva la ficha guardada, que puede estar desactualizada.'
                           : 'No se pudieron consultar los datos. Revise la conexión e inténtelo de nuevo.'}
-                      </ThemedText>
+                      </Notice>
                     )}
                     {currentLookup === 'restored-cache' && (
-                      <ThemedText>
+                      <Notice tone="info">
                         Captura pendiente recuperada con la ficha guardada del medidor.
-                      </ThemedText>
+                      </Notice>
                     )}
                     {currentLookup === 'restored-outdated' && (
-                      <ThemedText>
+                      <Notice tone="warning">
                         Captura pendiente recuperada. Se usan los datos guardados del medidor, que
                         pueden estar desactualizados.
-                      </ThemedText>
+                      </Notice>
                     )}
                     {currentLookup === 'restored-requires-connection' && (
-                      <ThemedText>
+                      <Notice tone="warning">
                         Captura pendiente recuperada. Se necesita conexión para consultar la ficha
                         del medidor.
-                      </ThemedText>
+                      </Notice>
                     )}
                     {currentLookup === 'expired' && (
-                      <ThemedText>
+                      <Notice tone="warning">
                         Los datos guardados vencieron. Consulte de nuevo para obtener datos actuales.
-                      </ThemedText>
+                      </Notice>
                     )}
                   </View>
                 )}
@@ -441,13 +452,16 @@ export default function MeterScreen() {
                     style={[
                       styles.meterCard,
                       {
-                        backgroundColor: theme.backgroundElement,
-                        borderColor: theme.textSecondary,
+                        backgroundColor: theme.background,
+                        borderColor: theme.border,
                       },
                     ]}>
-                    <ThemedText type="smallBold">
-                      {`Ficha del medidor ${displayedMeter.meterCode}`}
-                    </ThemedText>
+                    <View style={styles.meterCardHeader}>
+                      <Gauge color={theme.infoForeground} size={20} />
+                      <ThemedText type="smallBold">
+                        {`Ficha del medidor ${displayedMeter.meterCode}`}
+                      </ThemedText>
+                    </View>
                     <MeterDetail label="Dirección" value={displayedMeter.address} />
                     <MeterDetail label="Sector" value={displayedMeter.sector} />
                     <MeterDetail label="Número de cuenta" value={displayedMeter.accountNumber} />
@@ -522,23 +536,40 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: Spacing.four,
   },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  buttonLabel: {
+    fontSize: 16,
+  },
   pressed: {
-    opacity: 0.7,
+    opacity: 0.8,
+  },
+  disabled: {
+    opacity: 0.45,
   },
   feedback: {
     gap: Spacing.two,
   },
-  loading: {
-    minHeight: 44,
+  inlineStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one + Spacing.half,
+  },
+  meterCard: {
+    borderWidth: 1,
+    borderRadius: Spacing.three,
+    padding: Spacing.three,
+    gap: Spacing.two,
+  },
+  meterCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
   },
-  meterCard: {
-    borderWidth: 1,
-    borderRadius: Spacing.two,
-    padding: Spacing.three,
-    gap: Spacing.two,
+  sectionTitle: {
+    marginTop: Spacing.three,
   },
   meterDetail: {
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -626,9 +657,9 @@ const styles = StyleSheet.create({
   },
   readingItem: {
     borderWidth: 1,
-    borderRadius: Spacing.two,
+    borderRadius: Spacing.three,
     padding: Spacing.three,
-    gap: Spacing.one,
+    gap: Spacing.two,
   },
 });
 
@@ -977,14 +1008,14 @@ function ReadingRegistration({
                   style={({ pressed }) => [
                     styles.conditionOption,
                     {
-                      borderColor: selected ? theme.text : theme.textSecondary,
-                      backgroundColor: selected ? theme.text : theme.backgroundElement,
+                      borderColor: selected ? theme.accent : theme.inputBorder,
+                      backgroundColor: selected ? theme.accent : theme.background,
                     },
                     pressed && styles.pressed,
                   ]}>
                   <ThemedText
                     type={selected ? 'smallBold' : 'small'}
-                    style={selected ? { color: theme.background } : undefined}>
+                    style={selected ? { color: theme.onAccent } : undefined}>
                     {option.label}
                   </ThemedText>
                 </Pressable>
@@ -992,7 +1023,7 @@ function ReadingRegistration({
             })}
           </View>
           {errors.condition && (
-            <ThemedText themeColor="textSecondary" accessibilityLiveRegion="polite">
+            <ThemedText type="small" themeColor="textSecondary" accessibilityLiveRegion="polite">
               {errors.condition}
             </ThemedText>
           )}
@@ -1038,7 +1069,8 @@ function ReadingRegistration({
               />
               {errors.value && (
                 <ThemedText
-                  themeColor={form.value.trim() === '' ? 'textSecondary' : 'text'}
+                  type="small"
+                  themeColor={form.value.trim() === '' ? 'textSecondary' : 'errorForeground'}
                   accessibilityLiveRegion="polite">
                   {errors.value}
                 </ThemedText>
@@ -1065,13 +1097,11 @@ function ReadingRegistration({
                   style={[
                     styles.checkbox,
                     {
-                      borderColor: theme.text,
-                      backgroundColor: meterReviewConfirmed ? theme.text : 'transparent',
+                      borderColor: theme.accent,
+                      backgroundColor: meterReviewConfirmed ? theme.accent : 'transparent',
                     },
                   ]}>
-                  {meterReviewConfirmed && (
-                    <ThemedText style={{ color: theme.background }}>✓</ThemedText>
-                  )}
+                  {meterReviewConfirmed && <Check color={theme.onAccent} size={18} strokeWidth={3} />}
                 </View>
                 <ThemedText style={styles.checkboxLabel}>
                   Confirmo que revisé el medidor de agua
@@ -1089,9 +1119,9 @@ function ReadingRegistration({
           )}
 
           {editing && isSyncing && (
-            <ThemedText accessibilityLiveRegion="polite">
+            <Notice tone="loading">
               Se están enviando registros. Espere a que termine el envío para guardar la corrección.
-            </ThemedText>
+            </Notice>
           )}
 
           <Pressable
@@ -1104,10 +1134,11 @@ function ReadingRegistration({
             onPress={() => void (editing ? handleSaveCorrection() : handleRegister())}
             style={({ pressed }) => [
               styles.consultButton,
-              { backgroundColor: theme.text },
-              (pressed || !canRegister) && styles.pressed,
+              { backgroundColor: theme.accent },
+              pressed && styles.pressed,
+              !canRegister && styles.disabled,
             ]}>
-            <ThemedText style={{ color: theme.background }}>
+            <ThemedText type="smallBold" style={[styles.buttonLabel, { color: theme.onAccent }]}>
               {isSaving ? 'Guardando…' : editing ? 'Guardar corrección' : 'Registrar'}
             </ThemedText>
           </Pressable>
@@ -1119,31 +1150,36 @@ function ReadingRegistration({
               style={({ pressed }) => [
                 styles.consultButton,
                 styles.secondaryButton,
-                { borderColor: theme.text },
+                { borderColor: theme.inputBorder },
                 pressed && styles.pressed,
               ]}>
-              <ThemedText>Cancelar corrección</ThemedText>
+              <ThemedText type="smallBold" style={styles.buttonLabel}>
+                Cancelar corrección
+              </ThemedText>
             </Pressable>
           )}
         </View>
       ) : meter && monthReading ? (
-        <ThemedText accessibilityLiveRegion="polite">
+        <Notice tone="info">
           {monthReading.employeeCode === employeeCode && monthReading.syncStatus === 'pending'
             ? 'Este medidor ya tiene un registro este mes. Puede modificarlo en Registros guardados mientras no se haya enviado.'
             : 'Este medidor ya tiene un registro este mes y no se puede registrar otro.'}
-        </ThemedText>
+        </Notice>
       ) : (
         offlineWithoutMeter && (
-          <ThemedText accessibilityLiveRegion="polite">
+          <Notice tone="warning">
             No se puede registrar el medidor sin conexión porque no hay una ficha guardada.
-          </ThemedText>
+          </Notice>
         )
       )}
 
       {feedback && (
-        <View accessibilityLiveRegion="polite" style={styles.feedback}>
-          <ThemedText type="smallBold">
-            {feedback.status === 'error'
+        <View style={styles.feedback}>
+          <Notice
+            tone={
+              feedback.status === 'saved' || feedback.status === 'corrected' ? 'success' : 'error'
+            }
+            title={feedback.status === 'error'
               ? 'No se pudo guardar el registro. Inténtelo de nuevo.'
               : feedback.status === 'duplicate'
                 ? 'No se guardó: este medidor ya tiene un registro este mes.'
@@ -1151,8 +1187,7 @@ function ReadingRegistration({
                   ? 'No se guardaron los cambios: el registro ya fue enviado o los datos no son válidos.'
                   : feedback.status === 'corrected'
                     ? 'Cambios guardados en el registro.'
-                    : 'Registro guardado.'}
-          </ThemedText>
+                    : 'Registro guardado.'}>
           {feedback.status === 'saved' &&
             (feedback.reading.status === 'verified' && feedback.reading.difference !== null ? (
               <ReadingDifferenceDetails
@@ -1160,29 +1195,38 @@ function ReadingRegistration({
                 unit={unit}
               />
             ) : (
-              <ThemedText>
+              <ThemedText type="small">
                 {feedback.reading.status === 'not-applicable'
                   ? 'Comparación con la lectura anterior: No aplica.'
                   : 'La comparación con la lectura anterior se hará al recuperar la conexión.'}
               </ThemedText>
             ))}
-          {(feedback.status === 'saved' || feedback.status === 'corrected') && (
-            <ThemedText>
-              {feedback.savedOffline
-                ? 'Actualmente no tiene conexión. Estado: Pendiente de envío. Se enviará automáticamente al recuperar la conexión.'
-                : 'Estado: Pendiente de envío. Se enviará en este momento.'}
-            </ThemedText>
-          )}
+            {(feedback.status === 'saved' || feedback.status === 'corrected') &&
+              !feedback.savedOffline && (
+                <ThemedText type="small">
+                  Estado: Pendiente de envío. Se enviará en este momento.
+                </ThemedText>
+              )}
+          </Notice>
+          {(feedback.status === 'saved' || feedback.status === 'corrected') &&
+            feedback.savedOffline && (
+              <Notice tone="warning">
+                Actualmente no tiene conexión. Estado: Pendiente de envío. Se enviará
+                automáticamente al recuperar la conexión.
+              </Notice>
+            )}
         </View>
       )}
 
       {readingsQuery.isError && (
-        <ThemedText>No se pudieron cargar los registros guardados.</ThemedText>
+        <Notice tone="error">No se pudieron cargar los registros guardados.</Notice>
       )}
 
       {readingsQuery.data && readingsQuery.data.length > 0 && (
         <View style={styles.field}>
-          <ThemedText type="smallBold">Registros guardados</ThemedText>
+          <ThemedText type="subtitle" style={styles.sectionTitle}>
+            Registros guardados
+          </ThemedText>
           {readingsQuery.data.map((reading) => (
             <ReadingItem
               key={reading.id}
@@ -1213,13 +1257,13 @@ function ConsumptionNotice({
   }
 
   return (
-    <ThemedText accessibilityLiveRegion="polite">
+    <Notice tone={assessment.check === 'normal' ? 'info' : 'warning'}>
       {assessment.check === 'review-required'
         ? `La lectura es menor que la anterior (${previousReading}). El registro quedará marcado para revisión y no se calculará el consumo.`
         : assessment.check === 'elevated'
           ? `Advertencia: el consumo del mes (${assessment.consumption} ${unit}) supera el triple del promedio mensual (${assessment.threshold} ${unit}). Revise el medidor y tome una foto.`
           : `Consumo del mes: ${assessment.consumption} ${unit}.`}
-    </ThemedText>
+    </Notice>
   );
 }
 
@@ -1258,7 +1302,7 @@ function NoteField({
       />
       <ThemedText
         type={value.length >= MAX_NOTE_LENGTH ? 'smallBold' : 'small'}
-        themeColor={value.length >= MAX_NOTE_LENGTH ? 'text' : 'textSecondary'}
+        themeColor={value.length >= MAX_NOTE_LENGTH ? 'warningForeground' : 'textSecondary'}
         accessibilityLiveRegion="polite">
         {value.length >= MAX_NOTE_LENGTH
           ? `${value.length}/${MAX_NOTE_LENGTH} caracteres. Llegó al límite: no puede escribir más.`
@@ -1266,7 +1310,8 @@ function NoteField({
       </ThemedText>
       {error && (
         <ThemedText
-          themeColor={value.trim() === '' ? 'textSecondary' : 'text'}
+          type="small"
+          themeColor={value.trim() === '' ? 'textSecondary' : 'errorForeground'}
           accessibilityLiveRegion="polite">
           {error}
         </ThemedText>
@@ -1285,7 +1330,9 @@ function ReadingDifferenceDetails({
   return (
     <View>
       {describeReadingDifference(reading, unit).map((line) => (
-        <ThemedText key={line}>{line}</ThemedText>
+        <ThemedText key={line} type="small">
+          {line}
+        </ThemedText>
       ))}
     </View>
   );
@@ -1313,7 +1360,7 @@ function ReadingItem({
     <View
       style={[
         styles.readingItem,
-        { backgroundColor: theme.backgroundElement, borderColor: theme.textSecondary },
+        { backgroundColor: theme.background, borderColor: theme.border },
       ]}>
       <ThemedText type="smallBold">{CONDITION_TITLES[reading.condition]}</ThemedText>
       <ThemedText type="small" themeColor="textSecondary">
@@ -1349,23 +1396,36 @@ function ReadingItem({
         <ThemedText>{`Consumo del mes: ${reading.consumption}`}</ThemedText>
       )}
       {reading.consumptionCheck === 'elevated' && (
-        <ThemedText>
+        <ThemedText themeColor="warningForeground">
           {`Consumo elevado: ${reading.consumption}, supera el triple del promedio mensual (${reading.monthlyAverageConsumption}). Revisión del medidor confirmada.`}
         </ThemedText>
       )}
       {reading.consumptionCheck === 'review-required' && (
-        <ThemedText>Marcado para revisión: la lectura es menor que la anterior.</ThemedText>
+        <ThemedText themeColor="warningForeground">Marcado para revisión: la lectura es menor que la anterior.</ThemedText>
       )}
       {reading.updatedAt && (
         <ThemedText type="small" themeColor="textSecondary">
           {`Modificado el ${formatReadingTimestamp(reading.updatedAt)}`}
         </ThemedText>
       )}
-      <ThemedText type="small" themeColor="textSecondary">
-        {reading.syncStatus === 'sent' && reading.sentAt
-          ? `Enviado el ${formatReadingTimestamp(reading.sentAt)}`
-          : 'Pendiente de envío'}
-      </ThemedText>
+      <View style={styles.inlineStatus}>
+        {reading.syncStatus === 'sent' && reading.sentAt ? (
+          <CircleCheck color={theme.successForeground} size={16} />
+        ) : (
+          <CloudUpload color={theme.warningForeground} size={16} />
+        )}
+        <ThemedText
+          type="smallBold"
+          themeColor={
+            reading.syncStatus === 'sent' && reading.sentAt
+              ? 'successForeground'
+              : 'warningForeground'
+          }>
+          {reading.syncStatus === 'sent' && reading.sentAt
+            ? `Enviado el ${formatReadingTimestamp(reading.sentAt)}`
+            : 'Pendiente de envío'}
+        </ThemedText>
+      </View>
       {reading.photoUri && (
         <Image
           accessibilityLabel="Foto del medidor asociada al registro"
@@ -1387,10 +1447,15 @@ function ReadingItem({
           style={({ pressed }) => [
             styles.consultButton,
             styles.secondaryButton,
-            { borderColor: theme.text },
-            (pressed || correctionBlocked) && styles.pressed,
+            styles.buttonRow,
+            { borderColor: theme.accent },
+            pressed && styles.pressed,
+            correctionBlocked && styles.disabled,
           ]}>
-          <ThemedText>Corregir</ThemedText>
+          <Pencil color={theme.infoForeground} size={18} />
+          <ThemedText type="smallBold" style={[styles.buttonLabel, { color: theme.infoForeground }]}>
+            Corregir
+          </ThemedText>
         </Pressable>
       )}
     </View>
@@ -1401,7 +1466,7 @@ function MeterDetail({ label, value }: { label: string; value: string }) {
   const theme = useTheme();
 
   return (
-    <View style={[styles.meterDetail, { borderColor: theme.textSecondary }]}>
+    <View style={[styles.meterDetail, { borderColor: theme.border }]}>
       <ThemedText type="small" themeColor="textSecondary">
         {label}
       </ThemedText>

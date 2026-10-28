@@ -1,26 +1,48 @@
-/**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
- */
-
 import '@/global.css';
 
 import { Platform } from 'react-native';
 
+// Paleta EPMAPS: blanco dominante, #243376 para texto y estructura, #1E72BA solo para la acción
+// principal. Los tonos de aviso (éxito, advertencia, error) se agregan porque el técnico debe
+// distinguir el tipo de mensaje de un vistazo en campo; siempre van acompañados de un icono.
 export const Colors = {
   light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
+    text: '#243376',
+    background: '#FFFFFF',
+    backgroundElement: '#F5F7FB',
+    backgroundSelected: '#E8EEF7',
+    textSecondary: '#5A6595',
+    border: '#DCE0EC',
+    inputBorder: '#7A84AE',
+    accent: '#1E72BA',
+    onAccent: '#FFFFFF',
+    infoBackground: '#EAF2FA',
+    infoForeground: '#1E72BA',
+    successBackground: '#E8F4EE',
+    successForeground: '#1F7A4D',
+    warningBackground: '#FFF5E1',
+    warningForeground: '#8A5A00',
+    errorBackground: '#FDECEA',
+    errorForeground: '#B3261E',
   },
   dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
+    text: '#FFFFFF',
+    background: '#0E1430',
+    backgroundElement: '#18214A',
+    backgroundSelected: '#222D5E',
+    textSecondary: '#B9C1E0',
+    border: '#2C3768',
+    inputBorder: '#8A94C2',
+    accent: '#5FA3E0',
+    onAccent: '#0E1430',
+    infoBackground: '#14254A',
+    infoForeground: '#8FC1EE',
+    successBackground: '#123326',
+    successForeground: '#7FD1A6',
+    warningBackground: '#3A2C10',
+    warningForeground: '#F2C46B',
+    errorBackground: '#3B1517',
+    errorForeground: '#FFB4AB',
   },
 } as const;
 

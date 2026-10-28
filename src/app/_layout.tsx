@@ -11,6 +11,7 @@ import { PendingDraftPrompt } from '@/components/pending-draft-prompt';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import {
   persistOptions,
   pruneExpiredMeterCache,
@@ -45,11 +46,16 @@ export default function RootLayout() {
 function SessionNavigator() {
   const { status } = useSession();
   const colorScheme = useColorScheme();
+  const theme = useTheme();
 
   if (status === 'loading') {
     return (
       <ThemedView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" accessibilityLabel="Cargando sesión" />
+        <ActivityIndicator
+          color={theme.accent}
+          size="large"
+          accessibilityLabel="Cargando sesión"
+        />
         <ThemedText themeColor="textSecondary">Cargando sesión…</ThemedText>
       </ThemedView>
     );
