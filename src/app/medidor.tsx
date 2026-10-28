@@ -237,6 +237,11 @@ export default function MeterScreen() {
 
   const handleChangeText = (_text: string, rawText: string) => {
     const nextDigits = rawText.replace(/\D/g, '').slice(0, 6);
+    // El campo con máscara también avisa cuando la app escribe el código (al continuar una
+    // captura); sin un cambio real no se reinicia la consulta ni la captura recuperada.
+    if (nextDigits === meterCodeDraft) {
+      return;
+    }
     meterCodeDraft = nextDigits;
     setDigits(nextDigits);
     setLookup(null);
