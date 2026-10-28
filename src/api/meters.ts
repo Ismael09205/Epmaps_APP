@@ -2,7 +2,7 @@ import { parseMeterResults, type MeterLookupResult } from '@/domain/meter';
 import { normalizeMeterCode } from '@/domain/meter-code';
 
 const METERS_ENDPOINT =
-  'https://6ad90cb3f89c5702ed9a631a.mockapi.io/api/v1/medidores';
+  'https://6ad90cb3f89c5702ed9a631a.mockapi.io/medidores';
 
 export class MeterApiError extends Error {
   constructor(

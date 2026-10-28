@@ -43,7 +43,7 @@ describe('fetchMeter', () => {
       meter: validMeter,
     });
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://6ad90cb3f89c5702ed9a631a.mockapi.io/api/v1/medidores?meterCode=MED-123456',
+      'https://6ad90cb3f89c5702ed9a631a.mockapi.io/medidores?meterCode=MED-123456',
     );
   });
 
