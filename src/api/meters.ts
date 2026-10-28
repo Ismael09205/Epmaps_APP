@@ -20,6 +20,11 @@ export async function fetchMeter(meterCode: string): Promise<MeterLookupResult> 
     `${METERS_ENDPOINT}?meterCode=${encodeURIComponent(normalizedCode)}`,
   );
 
+  // MockAPI responde 404 cuando el filtro por código no tiene resultados.
+  if (response.status === 404) {
+    return { status: 'not-found' };
+  }
+
   if (!response.ok) {
     throw new MeterApiError(`La consulta del medidor falló con HTTP ${response.status}.`);
   }

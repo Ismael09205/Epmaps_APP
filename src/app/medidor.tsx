@@ -362,18 +362,14 @@ export default function MeterScreen() {
 
                 {currentLookup !== null && (
                   <View accessibilityLiveRegion="polite" style={styles.feedback}>
-                    {currentLookup === 'loading' && (
+                    {currentLookup === 'loading' && !meterEntry && (
                       <View style={styles.loading}>
                         <ActivityIndicator
                           color={theme.text}
                           size="small"
                           accessibilityLabel="Consultando datos del medidor"
                         />
-                        <ThemedText>
-                          {meterEntry
-                            ? 'Actualizando datos del medidor…'
-                            : 'Consultando datos del medidor…'}
-                        </ThemedText>
+                        <ThemedText>Consultando datos del medidor…</ThemedText>
                       </View>
                     )}
                     {currentLookup === 'success' && (
@@ -651,8 +647,8 @@ const EMPTY_FORM: ReadingFormInput = {
 };
 
 type RegistrationFeedback =
-  | { status: 'saved'; reading: MeterReading }
-  | { status: 'corrected' }
+  | { status: 'saved'; reading: MeterReading; savedOffline: boolean }
+  | { status: 'corrected'; savedOffline: boolean }
   | { status: 'duplicate' }
   | { status: 'correction-rejected' }
   | { status: 'error' };
@@ -855,11 +851,12 @@ function ReadingRegistration({
     setFeedback(null);
 
     try {
+      const correctedOnline = onlineManager.isOnline();
       const corrected = correctMeterReading(editing, {
         details: validation.details,
         meterReviewConfirmed,
         photoUri,
-        isOnline: onlineManager.isOnline(),
+        isOnline: correctedOnline,
         correctedAt: new Date(),
       });
       await updateReading(corrected);
@@ -869,7 +866,7 @@ function ReadingRegistration({
       }
 
       restoreRegistration();
-      setFeedback({ status: 'corrected' });
+      setFeedback({ status: 'corrected', savedOffline: !correctedOnline });
       void refreshReadings(corrected);
     } catch (error: unknown) {
       console.error('No se pudo guardar la corrección.', error);
@@ -912,13 +909,14 @@ function ReadingRegistration({
 
     try {
       const recordedAt = new Date();
+      const savedOnline = onlineManager.isOnline();
       const reading = createMeterReading({
         employeeCode,
         meterCode,
         details: validation.details,
         meter,
         recordedAt,
-        isOnline: onlineManager.isOnline(),
+        isOnline: savedOnline,
         meterReviewConfirmed,
         photoUri,
       });
@@ -927,7 +925,7 @@ function ReadingRegistration({
       setForm(EMPTY_FORM);
       setMeterReviewConfirmed(false);
       setPhotoUri(null);
-      setFeedback({ status: 'saved', reading: saved });
+      setFeedback({ status: 'saved', reading: saved, savedOffline: !savedOnline });
       void refreshReadings(saved);
     } catch (error: unknown) {
       console.error('No se pudo guardar el registro.', error);
@@ -1125,7 +1123,7 @@ function ReadingRegistration({
       ) : meter && monthReading ? (
         <ThemedText accessibilityLiveRegion="polite">
           {monthReading.employeeCode === employeeCode && monthReading.syncStatus === 'pending'
-            ? 'Este medidor ya tiene un registro este mes. Para cambiarlo, use «Corregir» en el registro guardado.'
+            ? 'Este medidor ya tiene un registro este mes. Puede modificarlo en Registros guardados mientras no se haya enviado.'
             : 'Este medidor ya tiene un registro este mes y no se puede registrar otro.'}
         </ThemedText>
       ) : (
@@ -1137,23 +1135,37 @@ function ReadingRegistration({
       )}
 
       {feedback && (
-        <ThemedText accessibilityLiveRegion="polite">
-          {feedback.status === 'error'
-            ? 'No se pudo guardar el registro. Inténtelo de nuevo.'
-            : feedback.status === 'duplicate'
-              ? 'No se guardó: este medidor ya tiene un registro este mes.'
-              : feedback.status === 'correction-rejected'
-                ? 'No se guardó la corrección: el registro ya fue enviado o no cumple las validaciones.'
-                : feedback.status === 'corrected'
-                  ? 'Corrección guardada.'
-                  : feedback.reading.status === 'verified' && feedback.reading.difference !== null
-              ? `Registro guardado. Diferencia con la lectura anterior: ${formatReadingDifference(
-                  feedback.reading.difference,
-                )}.`
-              : feedback.reading.status === 'not-applicable'
-                ? 'Registro guardado. Comparación con la lectura anterior: No aplica.'
-                : 'Registro guardado sin conexión.'}
-        </ThemedText>
+        <View accessibilityLiveRegion="polite" style={styles.feedback}>
+          <ThemedText type="smallBold">
+            {feedback.status === 'error'
+              ? 'No se pudo guardar el registro. Inténtelo de nuevo.'
+              : feedback.status === 'duplicate'
+                ? 'No se guardó: este medidor ya tiene un registro este mes.'
+                : feedback.status === 'correction-rejected'
+                  ? 'No se guardaron los cambios: el registro ya fue enviado o los datos no son válidos.'
+                  : feedback.status === 'corrected'
+                    ? 'Cambios guardados en el registro.'
+                    : 'Registro guardado.'}
+          </ThemedText>
+          {feedback.status === 'saved' && (
+            <ThemedText>
+              {feedback.reading.status === 'verified' && feedback.reading.difference !== null
+                ? `Diferencia con la lectura anterior: ${formatReadingDifference(
+                    feedback.reading.difference,
+                  )}.`
+                : feedback.reading.status === 'not-applicable'
+                  ? 'Comparación con la lectura anterior: No aplica.'
+                  : 'La comparación con la lectura anterior se hará al recuperar la conexión.'}
+            </ThemedText>
+          )}
+          {(feedback.status === 'saved' || feedback.status === 'corrected') && (
+            <ThemedText>
+              {feedback.savedOffline
+                ? 'Actualmente no tiene conexión. Estado: Pendiente de envío. Se enviará automáticamente al recuperar la conexión.'
+                : 'Estado: Pendiente de envío. Se enviará en este momento.'}
+            </ThemedText>
+          )}
+        </View>
       )}
 
       {readingsQuery.isError && (
@@ -1235,8 +1247,13 @@ function NoteField({
         style={[style, styles.noteInput]}
         value={value}
       />
-      <ThemedText type="small" themeColor="textSecondary">
-        {`${value.trim().length}/${MAX_NOTE_LENGTH} caracteres`}
+      <ThemedText
+        type={value.length >= MAX_NOTE_LENGTH ? 'smallBold' : 'small'}
+        themeColor={value.length >= MAX_NOTE_LENGTH ? 'text' : 'textSecondary'}
+        accessibilityLiveRegion="polite">
+        {value.length >= MAX_NOTE_LENGTH
+          ? `${value.length}/${MAX_NOTE_LENGTH} caracteres. Llegó al límite: no puede escribir más.`
+          : `${value.length}/${MAX_NOTE_LENGTH} caracteres`}
       </ThemedText>
       {error && (
         <ThemedText

@@ -34,9 +34,7 @@ export function ConnectionBanner() {
         },
       ]}>
       <Text style={styles.text}>
-        {isOnline
-          ? 'Con conexión'
-          : 'Sin conexión: los registros se guardan en el teléfono'}
+        {isOnline ? 'Con conexión' : 'Sin conexión'}
       </Text>
     </View>
   );

@@ -5,10 +5,11 @@ import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useSession } from '@/auth/session-context';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
+import { getReadingMonth } from '@/domain/reading';
 import type { ReadingDraft } from '@/domain/reading-draft';
 import { useTheme } from '@/hooks/use-theme';
 import { deleteReadingPhoto } from '@/storage/photos';
-import { deleteDraft, loadDraft } from '@/storage/readings';
+import { deleteDraft, findMeterReadingInMonth, loadDraft } from '@/storage/readings';
 
 // El aviso se ofrece una vez por técnico cada vez que se abre la app.
 let promptedEmployeeCode: string | null = null;
@@ -28,7 +29,7 @@ export function PendingDraftPrompt() {
     }
 
     promptedEmployeeCode = employeeCode;
-    loadDraft(employeeCode)
+    loadPendingDraft(employeeCode)
       .then(setDraft)
       .catch((error: unknown) => {
         console.error('No se pudo consultar la captura pendiente.', error);
@@ -128,3 +129,26 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
 });
+
+// Una captura cuyo medidor ya tiene registro este mes no puede terminarse (HU-010 CA-03):
+// se descarta sin preguntar para no ofrecer retomar un registro ya guardado o enviado.
+async function loadPendingDraft(employeeCode: string): Promise<ReadingDraft | null> {
+  const draft = await loadDraft(employeeCode);
+  if (!draft) {
+    return null;
+  }
+
+  const monthReading = await findMeterReadingInMonth(
+    `MED-${draft.meterDigits}`,
+    getReadingMonth(new Date()),
+  );
+  if (!monthReading) {
+    return draft;
+  }
+
+  const photoUri = await deleteDraft(employeeCode);
+  if (photoUri && photoUri !== monthReading.photoUri) {
+    deleteReadingPhoto(photoUri);
+  }
+  return null;
+}

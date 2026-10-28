@@ -59,6 +59,12 @@ describe('fetchMeter', () => {
     await expect(fetchMeter(validMeter.meterCode)).resolves.toEqual({ status: 'ambiguous' });
   });
 
+  it('devuelve no encontrado cuando el filtro responde HTTP 404', async () => {
+    fetchMock.mockResolvedValue(createResponse('Not found', { ok: false, status: 404 }));
+
+    await expect(fetchMeter(validMeter.meterCode)).resolves.toEqual({ status: 'not-found' });
+  });
+
   it('rechaza respuestas HTTP fallidas', async () => {
     fetchMock.mockResolvedValue(createResponse(null, { ok: false, status: 503 }));
 
