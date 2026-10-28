@@ -1,6 +1,6 @@
 import * as v from 'valibot';
 
-import { getDateTimeParts, type Meter } from './meter';
+import { formatMeterReadingDate, getDateTimeParts, type Meter } from './meter';
 import { normalizeMeterCode } from './meter-code';
 
 const MAX_INTEGER_DIGITS = 5;
@@ -346,6 +346,34 @@ export function verifyReading<T extends NewMeterReading>(reading: T, now: Date):
 
 export function formatReadingDifference(difference: number): string {
   return difference > 0 ? `+${difference}` : `${difference}`;
+}
+
+// HU-004 CA-03: detalle de la comparación con la lectura anterior, una línea por dato.
+export function describeReadingDifference(
+  reading: Pick<MeterReading, 'value' | 'previousReading' | 'previousReadingDate'> & {
+    difference: number;
+  },
+  unit: string,
+): string[] {
+  const withUnit = (amount: number) => (unit ? `${amount} ${unit}` : `${amount}`);
+  const { difference } = reading;
+
+  return [
+    `Lectura actual: ${withUnit(reading.value ?? 0)}`,
+    `Lectura anterior: ${withUnit(reading.previousReading)} del ${formatMeterReadingDate(
+      reading.previousReadingDate,
+    )}`,
+    `Diferencia: ${reading.value} − ${reading.previousReading} = ${formatReadingDifference(
+      difference,
+    )}${unit ? ` ${unit}` : ''}`,
+    difference > 0
+      ? `El medidor avanzó ${withUnit(difference)} desde la lectura anterior.`
+      : difference === 0
+        ? 'El medidor no avanzó: la lectura es igual a la anterior.'
+        : `La lectura es menor que la anterior por ${withUnit(
+            -difference,
+          )}. Revise el valor ingresado o el estado del medidor.`,
+  ];
 }
 
 // HU-010: mes calendario del registro en hora de Ecuador, con formato `YYYY-MM`.

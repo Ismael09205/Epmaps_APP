@@ -32,7 +32,7 @@ import {
   assessConsumption,
   correctMeterReading,
   createMeterReading,
-  formatReadingDifference,
+  describeReadingDifference,
   formatReadingTimestamp,
   getReadingMonth,
   isPhotoRequired,
@@ -741,6 +741,7 @@ function ReadingRegistration({
     networkMode: 'always',
   });
   const monthReading = monthReadingQuery.data ?? null;
+  const unit = meter?.monthlyAverageConsumptionUnit ?? '';
   const showForm =
     editing !== null || (meter !== undefined && monthReadingQuery.isSuccess && monthReading === null);
   const canRegister =
@@ -1044,7 +1045,7 @@ function ReadingRegistration({
             <ConsumptionNotice
               assessment={assessment}
               previousReading={evaluationContext.lastReading}
-              unit={meter?.monthlyAverageConsumptionUnit ?? ''}
+              unit={unit}
             />
           )}
 
@@ -1147,17 +1148,19 @@ function ReadingRegistration({
                     ? 'Cambios guardados en el registro.'
                     : 'Registro guardado.'}
           </ThemedText>
-          {feedback.status === 'saved' && (
-            <ThemedText>
-              {feedback.reading.status === 'verified' && feedback.reading.difference !== null
-                ? `Diferencia con la lectura anterior: ${formatReadingDifference(
-                    feedback.reading.difference,
-                  )}.`
-                : feedback.reading.status === 'not-applicable'
+          {feedback.status === 'saved' &&
+            (feedback.reading.status === 'verified' && feedback.reading.difference !== null ? (
+              <ReadingDifferenceDetails
+                reading={{ ...feedback.reading, difference: feedback.reading.difference }}
+                unit={unit}
+              />
+            ) : (
+              <ThemedText>
+                {feedback.reading.status === 'not-applicable'
                   ? 'Comparación con la lectura anterior: No aplica.'
                   : 'La comparación con la lectura anterior se hará al recuperar la conexión.'}
-            </ThemedText>
-          )}
+              </ThemedText>
+            ))}
           {(feedback.status === 'saved' || feedback.status === 'corrected') && (
             <ThemedText>
               {feedback.savedOffline
@@ -1181,6 +1184,7 @@ function ReadingRegistration({
               reading={reading}
               isEditing={editing?.id === reading.id}
               correctionBlocked={isSyncing || isSaving}
+              unit={unit}
               onCorrect={() => startCorrection(reading)}
             />
           ))}
@@ -1266,15 +1270,33 @@ function NoteField({
   );
 }
 
+function ReadingDifferenceDetails({
+  reading,
+  unit,
+}: {
+  reading: Parameters<typeof describeReadingDifference>[0];
+  unit: string;
+}) {
+  return (
+    <View>
+      {describeReadingDifference(reading, unit).map((line) => (
+        <ThemedText key={line}>{line}</ThemedText>
+      ))}
+    </View>
+  );
+}
+
 function ReadingItem({
   reading,
   isEditing,
   correctionBlocked,
+  unit,
   onCorrect,
 }: {
   reading: MeterReading;
   isEditing: boolean;
   correctionBlocked: boolean;
+  unit: string;
   onCorrect: () => void;
 }) {
   const theme = useTheme();
@@ -1304,11 +1326,13 @@ function ReadingItem({
         </ThemedText>
       )}
       {reading.status === 'verified' && reading.difference !== null ? (
-        <ThemedText>
-          {`Verificada. Diferencia con la lectura anterior (${previous}): ${formatReadingDifference(
-            reading.difference,
-          )}`}
-        </ThemedText>
+        <View>
+          <ThemedText>Verificada. Comparación con la lectura anterior:</ThemedText>
+          <ReadingDifferenceDetails
+            reading={{ ...reading, difference: reading.difference }}
+            unit={unit}
+          />
+        </View>
       ) : reading.status === 'not-applicable' ? (
         <ThemedText>Comparación con la lectura anterior: No aplica.</ThemedText>
       ) : (

@@ -1,4 +1,5 @@
 import {
+  describeReadingDifference,
   assessConsumption,
   correctMeterReading,
   getReadingMonth,
@@ -543,6 +544,23 @@ describe('formateo', () => {
     expect(formatReadingDifference(5.5)).toBe('+5.5');
     expect(formatReadingDifference(-2)).toBe('-2');
     expect(formatReadingDifference(0)).toBe('0');
+  });
+
+  it('detalla la comparación con la lectura anterior', () => {
+    const base = { previousReading: 1250, previousReadingDate: '2026-09-27' };
+
+    expect(describeReadingDifference({ ...base, value: 1265.5, difference: 15.5 }, 'm³')).toEqual([
+      'Lectura actual: 1265.5 m³',
+      'Lectura anterior: 1250 m³ del 27/09/2026',
+      'Diferencia: 1265.5 − 1250 = +15.5 m³',
+      'El medidor avanzó 15.5 m³ desde la lectura anterior.',
+    ]);
+    expect(describeReadingDifference({ ...base, value: 1250, difference: 0 }, 'm³')[3]).toBe(
+      'El medidor no avanzó: la lectura es igual a la anterior.',
+    );
+    expect(describeReadingDifference({ ...base, value: 1248, difference: -2 }, 'm³')[3]).toBe(
+      'La lectura es menor que la anterior por 2 m³. Revise el valor ingresado o el estado del medidor.',
+    );
   });
 
   it('muestra el momento del registro en hora de Ecuador', () => {
