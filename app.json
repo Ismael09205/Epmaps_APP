@@ -33,7 +33,15 @@
           "imageWidth": 76
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-sqlite",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "La aplicación usa la cámara para tomar la foto del medidor como evidencia de la lectura.",
+          "recordAudioAndroid": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

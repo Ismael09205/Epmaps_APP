@@ -49,3 +49,39 @@ Decisiones aprobadas mediante entrevista directa el 27/10/2026. Basadas en `docs
 - **Pregunta (Q8):** ¿El campo presenta el prefijo `MED-` automáticamente y el técnico teclea solo los seis dígitos, manteniendo la validación final como función pura en `src/domain` (la máscara solo formatea, no valida), aplicando la normalización de D-03?
 - **Respuesta:** Sí.
 - **Motivo:** La validación de CA-02/CA-03 vive en el dominio, separada de la interfaz (constitución 9) y testeable con Jest (constitución 10); la máscara queda como UX pura y la regla de negocio tiene un único lugar (constitución 1).
+
+## D-09 — Texto del mensaje de formato inválido
+
+- **Pregunta (duda abierta de la spec):** ¿Cuál es el texto exacto del mensaje de formato inválido que D-04 manda mostrar junto al campo?
+- **Respuesta:** `El código debe tener el formato MED- seguido de seis dígitos.`
+- **Motivo:** En campo el técnico necesita saber qué está mal sin preguntar a nadie; repetir la regla le permite corregir al momento (constitución 7).
+
+## D-10 — Etiqueta y destino de la acción de continuar
+
+- **Pregunta (duda abierta de la spec):** ¿Cuál es la etiqueta de la acción habilitada con el código válido y a dónde conduce?
+- **Respuesta:** Etiqueta `Continuar`. Conduce al paso siguiente definido por HU-003 (la pantalla donde se consulta y muestra el dato del medidor), descrito sin acoplar esta spec a esa pantalla.
+- **Motivo:** `Continuar` es neutral y no promete una consulta que esta HU no realiza (D-01); si el paso siguiente cambia, el botón sigue siendo veraz.
+
+## D-11 — Conservación del código a medio escribir
+
+- **Pregunta (duda abierta de la spec):** ¿Se conserva el código a medio escribir al salir de la pantalla o al cerrar la aplicación?
+- **Respuesta:** Se conserva mientras el técnico navegue dentro de la aplicación y vuelva a la pantalla. **No** se persiste entre cierres de la aplicación: si la cierra, el campo empieza vacío y el código se reescribe.
+- **Motivo:** Evita reescribirlo en cada ida y vuelta (constitución 7) sin añadir persistencia de un dato temporal: guardarlo exigiría definir formato, clave y ciclo de vida de ese guardado, y un código a medio escribir no es información que deba sobrevivir a un cierre (constitución 1 y 8).
+
+## D-12 — Escritura manual del prefijo `MED-`
+
+- **Pregunta (duda abierta de la spec):** Además del prefijo automático de D-08, ¿se permite al técnico escribir el prefijo `MED-` a mano?
+- **Respuesta:** No. El campo incorpora únicamente los seis dígitos; cualquier otra tecla, incluida la escritura manual del prefijo, se ignora.
+- **Motivo:** Una sola forma de escribir el código elimina variantes (`MED -`, `med-`, doble prefijo) y deja D-08 sin ambigüedad, manteniendo la validación exacta de D-02.
+
+## D-13 - Estado válido sin acción de continuación en HU-002
+
+- **Pregunta:** Como el destino definido por HU-003 aún no existe y un botón sin acción no es válido, ¿qué debe mostrar HU-002 cuando el código sea válido?
+- **Respuesta:** HU-002 comunica que el código es válido, pero no presenta `Continuar`. Esa acción se incorporará cuando HU-003 implemente su destino real. No se realiza ninguna consulta al sistema de la oficina desde HU-002.
+- **Motivo:** Evita ofrecer un control sin comportamiento y mantiene separadas la validación local de HU-002 y la consulta de HU-003. Esta decisión reemplaza las partes de D-01, D-04 y D-10 que requerían mostrar o habilitar `Continuar` en HU-002.
+
+## D-14 - Entrada estricta sin error para teclas ignoradas
+
+- **Pregunta:** D-12 limita el campo a seis dígitos e ignora otras teclas, pero D-02, D-04 y D-09 definen un error visible para códigos inválidos. ¿Qué debe hacer la interfaz si la máscara no incorpora esas entradas?
+- **Respuesta:** El campo acepta hasta seis dígitos. Ignora los caracteres no numéricos y los dígitos adicionales, sin mostrarlos ni presentar un mensaje de error. `classifyMeterCode` conserva la clasificación `invalid` para validar textos arbitrarios fuera de la captura enmascarada.
+- **Motivo:** La captura enmascarada evita introducir valores que el campo no admite. Esta decisión reemplaza la presentación de error de D-02, D-04 y D-09 en la interfaz, sin cambiar la validación pura del dominio.
