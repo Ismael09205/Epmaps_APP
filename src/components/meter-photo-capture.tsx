@@ -1,14 +1,12 @@
 import { useRef, useState } from 'react';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Image } from 'expo-image';
 import { Camera } from 'lucide-react-native';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator, Modal, Pressable, View } from 'react-native';
 
+import { AnimatedButton } from '@/components/motion/animated-button';
 import { Notice } from '@/components/notice';
+import { Image, SafeAreaView } from '@/components/styled';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
 
 type MeterPhotoCaptureProps = {
   photoUri: string | null;
@@ -17,7 +15,6 @@ type MeterPhotoCaptureProps = {
 };
 
 export function MeterPhotoCapture({ photoUri, required, onCapture }: MeterPhotoCaptureProps) {
-  const theme = useTheme();
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -53,7 +50,7 @@ export function MeterPhotoCapture({ photoUri, required, onCapture }: MeterPhotoC
   };
 
   return (
-    <View style={styles.container}>
+    <View className="gap-2">
       <ThemedText type="smallBold">
         {required ? 'Foto del medidor (obligatoria)' : 'Foto del medidor (opcional)'}
       </ThemedText>
@@ -62,7 +59,7 @@ export function MeterPhotoCapture({ photoUri, required, onCapture }: MeterPhotoC
           accessibilityLabel="Foto tomada del medidor"
           contentFit="cover"
           source={{ uri: photoUri }}
-          style={styles.preview}
+          className="w-full rounded-sm aspect-[4/3]"
         />
       )}
       {permission !== null && !permission.granted && (
@@ -75,34 +72,26 @@ export function MeterPhotoCapture({ photoUri, required, onCapture }: MeterPhotoC
         </Notice>
       )}
       {captureFailed && <Notice tone="error">No se pudo tomar la foto. Inténtelo de nuevo.</Notice>}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ disabled: permissionDenied }}
+      <AnimatedButton
+        label={photoUri ? 'Tomar otra foto' : 'Tomar foto del medidor'}
+        icon={Camera}
+        variant="secondary"
         disabled={permissionDenied}
         onPress={() => void handleOpenCamera()}
-        style={({ pressed }) => [
-          styles.button,
-          { borderColor: theme.accent },
-          (pressed || permissionDenied) && styles.pressed,
-        ]}>
-        <Camera color={theme.infoForeground} size={20} />
-        <ThemedText type="smallBold" style={[styles.buttonLabel, { color: theme.infoForeground }]}>
-          {photoUri ? 'Tomar otra foto' : 'Tomar foto del medidor'}
-        </ThemedText>
-      </Pressable>
+      />
 
       <Modal
         animationType="slide"
         onRequestClose={() => setIsCameraOpen(false)}
         visible={isCameraOpen}>
-        <View style={styles.cameraContainer}>
-          <CameraView ref={cameraRef} facing="back" style={styles.camera} />
-          <SafeAreaView edges={['bottom']} style={styles.cameraActions}>
+        <View className="flex-1 bg-[#000000]">
+          <CameraView ref={cameraRef} facing="back" style={{ flex: 1 }} />
+          <SafeAreaView edges={['bottom']} className="flex-row justify-between gap-4 p-6">
             <Pressable
               accessibilityRole="button"
               onPress={() => setIsCameraOpen(false)}
-              style={({ pressed }) => [styles.cameraButton, pressed && styles.pressed]}>
-              <ThemedText style={styles.cameraButtonText}>Cancelar</ThemedText>
+              className="flex-1 min-h-[56px] rounded-sm items-center justify-center active:opacity-80">
+              <ThemedText className="text-[#ffffff]">Cancelar</ThemedText>
             </Pressable>
             <Pressable
               accessibilityRole="button"
@@ -110,15 +99,11 @@ export function MeterPhotoCapture({ photoUri, required, onCapture }: MeterPhotoC
               accessibilityState={{ busy: isCapturing }}
               disabled={isCapturing}
               onPress={() => void handleTakePicture()}
-              style={({ pressed }) => [
-                styles.cameraButton,
-                styles.captureButton,
-                pressed && styles.pressed,
-              ]}>
+              className="flex-1 min-h-[56px] rounded-sm items-center justify-center bg-[#ffffff] active:opacity-80">
               {isCapturing ? (
                 <ActivityIndicator color="#243376" />
               ) : (
-                <ThemedText style={styles.captureButtonText}>Capturar</ThemedText>
+                <ThemedText className="text-[#243376] font-semibold">Capturar</ThemedText>
               )}
             </Pressable>
           </SafeAreaView>
@@ -128,60 +113,3 @@ export function MeterPhotoCapture({ photoUri, required, onCapture }: MeterPhotoC
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    gap: Spacing.two,
-  },
-  preview: {
-    width: '100%',
-    aspectRatio: 4 / 3,
-    borderRadius: Spacing.two,
-  },
-  button: {
-    minHeight: 48,
-    flexDirection: 'row',
-    gap: Spacing.two,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderRadius: Spacing.two,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.four,
-  },
-  buttonLabel: {
-    fontSize: 16,
-  },
-  pressed: {
-    opacity: 0.8,
-  },
-  cameraContainer: {
-    flex: 1,
-    backgroundColor: '#000000',
-  },
-  camera: {
-    flex: 1,
-  },
-  cameraActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: Spacing.three,
-    padding: Spacing.four,
-  },
-  cameraButton: {
-    flex: 1,
-    minHeight: 56,
-    borderRadius: Spacing.two,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cameraButtonText: {
-    color: '#ffffff',
-  },
-  captureButton: {
-    backgroundColor: '#ffffff',
-  },
-  captureButtonText: {
-    color: '#243376',
-    fontWeight: '600',
-  },
-});

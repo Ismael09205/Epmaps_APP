@@ -420,6 +420,24 @@ describe('HU-009: estado de envío', () => {
     );
   });
 
+  it('resume las lecturas enviadas y pendientes del técnico en el mes', async () => {
+    database.getFirstAsync.mockResolvedValueOnce({ user_version: 6 });
+    database.getAllAsync.mockResolvedValueOnce([
+      { sync_status: 'sent', count: 3 },
+      { sync_status: 'pending', count: 1 },
+    ]);
+
+    await expect(readings.summarizePeriodSync('EPM-1001', '2026-11')).resolves.toEqual({
+      sent: 3,
+      pending: 1,
+    });
+    expect(database.getAllAsync).toHaveBeenLastCalledWith(
+      expect.stringContaining('GROUP BY sync_status'),
+      'EPM-1001',
+      '2026-11',
+    );
+  });
+
   it('cuenta los registros pendientes de envío del técnico', async () => {
     database.getFirstAsync.mockResolvedValueOnce({ user_version: 6 }).mockResolvedValue({ count: 2 });
 

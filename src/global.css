@@ -1,3 +1,108 @@
+@import 'tailwindcss';
+@import 'uniwind';
+
+/* Escalas fijas de la app. Espaciado: se usa la escala de Tailwind (p-1 = 4px, p-2 = 8px, p-4 = 16px). */
+@theme {
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+}
+
+/*
+ * Colores de la marca. Deben coincidir con `Colors` en constants/theme.ts, que siguen usando los
+ * iconos y las animaciones de Reanimated: esos valores no se pueden expresar como clases.
+ */
+@layer theme {
+  :root {
+    @variant light {
+      --color-text: #243376;
+      --color-background: #FFFFFF;
+      --color-background-element: #F5F7FB;
+      --color-background-selected: #E8EEF7;
+      --color-text-secondary: #5A6595;
+      --color-border: #DCE0EC;
+      --color-input-border: #7A84AE;
+      --color-accent: #1E72BA;
+      --color-on-accent: #FFFFFF;
+      --color-info-background: #EAF2FA;
+      --color-info-foreground: #1E72BA;
+      --color-success-background: #E8F4EE;
+      --color-success-foreground: #1F7A4D;
+      --color-warning-background: #FFF5E1;
+      --color-warning-foreground: #8A5A00;
+      --color-error-background: #FDECEA;
+      --color-error-foreground: #B3261E;
+      --color-brand: #243376;
+      --color-on-brand: #FFFFFF;
+      --color-on-brand-secondary: #C9D3EE;
+      --color-surface-text: #243376;
+      --color-surface-background: #FFFFFF;
+      --color-surface-background-element: #F5F7FB;
+      --color-surface-background-selected: #E8EEF7;
+      --color-surface-text-secondary: #5A6595;
+      --color-surface-border: #DCE0EC;
+      --color-surface-input-border: #7A84AE;
+      --color-surface-accent: #1E72BA;
+      --color-surface-on-accent: #FFFFFF;
+      --color-surface-info-background: #EAF2FA;
+      --color-surface-info-foreground: #1E72BA;
+      --color-surface-success-background: #E8F4EE;
+      --color-surface-success-foreground: #1F7A4D;
+      --color-surface-warning-background: #FFF5E1;
+      --color-surface-warning-foreground: #8A5A00;
+      --color-surface-error-background: #FDECEA;
+      --color-surface-error-foreground: #B3261E;
+      --color-surface-brand: #243376;
+      --color-surface-on-brand: #FFFFFF;
+      --color-surface-on-brand-secondary: #C9D3EE;
+    }
+
+    @variant dark {
+      --color-text: #FFFFFF;
+      --color-background: #0E1430;
+      --color-background-element: #18214A;
+      --color-background-selected: #222D5E;
+      --color-text-secondary: #B9C1E0;
+      --color-border: #2C3768;
+      --color-input-border: #8A94C2;
+      --color-accent: #5FA3E0;
+      --color-on-accent: #0E1430;
+      --color-info-background: #14254A;
+      --color-info-foreground: #8FC1EE;
+      --color-success-background: #123326;
+      --color-success-foreground: #7FD1A6;
+      --color-warning-background: #3A2C10;
+      --color-warning-foreground: #F2C46B;
+      --color-error-background: #3B1517;
+      --color-error-foreground: #FFB4AB;
+      --color-brand: #243376;
+      --color-on-brand: #FFFFFF;
+      --color-on-brand-secondary: #C9D3EE;
+      --color-surface-text: #243376;
+      --color-surface-background: #FFFFFF;
+      --color-surface-background-element: #F5F7FB;
+      --color-surface-background-selected: #E8EEF7;
+      --color-surface-text-secondary: #5A6595;
+      --color-surface-border: #DCE0EC;
+      --color-surface-input-border: #7A84AE;
+      --color-surface-accent: #1E72BA;
+      --color-surface-on-accent: #FFFFFF;
+      --color-surface-info-background: #EAF2FA;
+      --color-surface-info-foreground: #1E72BA;
+      --color-surface-success-background: #E8F4EE;
+      --color-surface-success-foreground: #1F7A4D;
+      --color-surface-warning-background: #FFF5E1;
+      --color-surface-warning-foreground: #8A5A00;
+      --color-surface-error-background: #FDECEA;
+      --color-surface-error-foreground: #B3261E;
+      --color-surface-brand: #243376;
+      --color-surface-on-brand: #FFFFFF;
+      --color-surface-on-brand-secondary: #C9D3EE;
+    }
+  }
+}
+
+/* Fuentes de la versión web. */
 :root {
   --font-display:
     Spline Sans, Inter, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji,

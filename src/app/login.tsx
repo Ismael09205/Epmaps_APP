@@ -1,32 +1,41 @@
 import { useRef, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   Droplets,
-  IdCard,
   LockKeyhole,
   LogIn,
+  Mail,
   ShieldCheck,
 } from 'lucide-react-native';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useSession } from '@/auth/session-context';
+import { useSession, type SignInResult } from '@/auth/session-context';
+import { AnimatedButton } from '@/components/motion/animated-button';
+import { AnimatedInputFrame, resolveInputState } from '@/components/motion/animated-input-frame';
+import { useCircularNavigation } from '@/components/motion/circular-transition';
 import { Notice } from '@/components/notice';
+import { SafeAreaView } from '@/components/styled';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { ChromeFontScale, Colors, Radius, ScreenPadding, Spacing } from '@/constants/theme';
+import { ChromeFontScale, Colors, Spacing } from '@/constants/theme';
+import { isValidEmail, PASSWORD_RESET_SENT_NOTICE } from '@/domain/auth';
 import { useTheme } from '@/hooks/use-theme';
 
-const EMPTY_MESSAGE = 'El código de empleado y la clave son obligatorios';
-const INVALID_MESSAGE = 'Credenciales inválidas';
+const ERROR_MESSAGES: Record<Exclude<SignInResult, 'ok' | 'unverified'>, string> = {
+  empty: 'El correo y la clave son obligatorios',
+  'invalid-email': 'Ingrese un correo válido, por ejemplo nombre@dominio.com',
+  invalid: 'Correo o clave incorrectos',
+  'no-profile': 'Su cuenta no tiene un perfil de técnico asignado. Contacte a la oficina.',
+  network: 'No se pudo conectar con el servidor. Revise su conexión e intente de nuevo.',
+  'too-many-requests': 'Demasiados intentos. Espere unos minutos e intente de nuevo.',
+  unavailable: 'No se pudo iniciar sesión. Intente de nuevo más tarde.',
+};
 
 // Los campos y la marca son blancos en ambos modos; se usa la paleta clara para que el texto y
 // los iconos conserven el contraste sobre esa superficie.
@@ -34,52 +43,87 @@ const SURFACE = Colors.light;
 
 export default function LoginScreen() {
   const { signIn } = useSession();
+  const router = useRouter();
+  const { navigateWithReveal } = useCircularNavigation();
+  const params = useLocalSearchParams<{ email?: string; notice?: string }>();
   const theme = useTheme();
-  const [employeeCode, setEmployeeCode] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const passwordRef = useRef<TextInput>(null);
-  const [focusedField, setFocusedField] = useState<'employeeCode' | 'password' | null>(null);
+  const [focusedField, setFocusedField] = useState<'email' | 'password' | null>(null);
+  const [isEmailTouched, setIsEmailTouched] = useState(false);
+
+  // Al volver de la recuperación de clave, el correo usado ya queda escrito.
+  const [receivedEmail, setReceivedEmail] = useState<string | undefined>();
+  if (params.email !== receivedEmail) {
+    setReceivedEmail(params.email);
+    if (params.email) {
+      setEmail(params.email);
+    }
+  }
+
+  const clearResetNotice = () => {
+    if (params.notice) {
+      router.setParams({ notice: undefined });
+    }
+  };
 
   const handleSubmit = async () => {
     if (isSubmitting) {
       return;
     }
 
+    clearResetNotice();
+    setIsEmailTouched(true);
+    // Sin datos completos no hay nada que verificar: el botón no pasa por el estado de carga.
+    if (email.trim() === '' || password === '') {
+      setErrorMessage(ERROR_MESSAGES.empty);
+      return;
+    }
+    if (!isValidEmail(email)) {
+      setErrorMessage(ERROR_MESSAGES['invalid-email']);
+      return;
+    }
+
+    setErrorMessage(null);
     setIsSubmitting(true);
-    const result = await signIn(employeeCode, password);
+    const result = await signIn(email, password);
     setIsSubmitting(false);
 
-    if (result === 'empty') {
-      setErrorMessage(EMPTY_MESSAGE);
-    } else if (result === 'invalid') {
-      setErrorMessage(INVALID_MESSAGE);
+    if (result !== 'ok' && result !== 'unverified') {
+      setErrorMessage(ERROR_MESSAGES[result]);
     }
   };
 
-  const fieldStyle = (field: 'employeeCode' | 'password') => [
-    styles.inputRow,
-    {
-      backgroundColor: SURFACE.background,
-      borderColor: focusedField === field ? SURFACE.accent : SURFACE.inputBorder,
-    },
-    focusedField === field && styles.inputRowFocused,
-  ];
+  const emailIsValid = isValidEmail(email);
+  const emailState = resolveInputState({
+    isFocused: focusedField === 'email',
+    isInvalid:
+      (isEmailTouched && !emailIsValid) || errorMessage === ERROR_MESSAGES.invalid,
+    isValid: emailIsValid,
+  });
+  // La clave no se marca como válida: solo Firebase puede confirmarla.
+  const passwordState = resolveInputState({
+    isFocused: focusedField === 'password',
+    isInvalid:
+      errorMessage === ERROR_MESSAGES.invalid ||
+      (errorMessage === ERROR_MESSAGES.empty && password === ''),
+    isValid: false,
+  });
 
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
-        <KeyboardAvoidingView
-          style={styles.keyboardView}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <ThemedView className="flex-1">
+      <SafeAreaView className="flex-1 px-5" edges={['left', 'right', 'bottom']}>
+        <KeyboardAvoidingView className="flex-1" behavior="padding">
+          <ScrollView contentContainerClassName="grow justify-center gap-6 py-6" keyboardShouldPersistTaps="handled">
             {/* Encabezado institucional: identifica la herramienta antes de pedir credenciales. */}
-            <View style={styles.brand}>
-              <View style={[styles.brandMark, { backgroundColor: SURFACE.infoBackground }]}>
+            <View className="flex-row items-center gap-4">
+              <View className="w-[56px] h-[56px] rounded-full items-center justify-center bg-surface-info-background">
                 <Droplets color={SURFACE.accent} size={28} strokeWidth={2} />
               </View>
-              <View style={styles.brandText}>
+              <View className="flex-1 gap-[2px]">
                 <ThemedText type="caption" themeColor="infoForeground">
                   EPMAPS · Quito
                 </ThemedText>
@@ -89,56 +133,67 @@ export default function LoginScreen() {
                 </ThemedText>
               </View>
             </View>
-            <View style={[styles.brandRule, { backgroundColor: theme.accent }]} />
+            <View className="w-[48px] h-[3px] rounded-full bg-accent" />
 
-            <View style={styles.form}>
-              <View style={styles.formHeader}>
-                <ThemedText style={styles.formTitle}>Identificación del técnico</ThemedText>
+            <View className="gap-4">
+              <View className="gap-1 mb-1">
+                <ThemedText className="font-bold">Identificación del técnico</ThemedText>
                 <ThemedText type="small" themeColor="textSecondary">
-                  Use el código de empleado y la clave asignados por la oficina.
+                  Use el correo y la clave de su cuenta de técnico.
                 </ThemedText>
               </View>
 
-              <View style={styles.field}>
-                <ThemedText type="smallBold">Código de empleado</ThemedText>
-                <View style={fieldStyle('employeeCode')}>
-                  <IdCard color={SURFACE.accent} size={20} />
+              <View className="gap-2">
+                <ThemedText type="smallBold">Correo electrónico</ThemedText>
+                <AnimatedInputFrame state={emailState} palette={SURFACE} className="min-h-[52px] flex-row items-center gap-2 rounded-sm border-[1px] px-4">
+                  <Mail color={SURFACE.accent} size={20} />
                   <TextInput
-                    style={[styles.input, { color: SURFACE.text }]}
+                    className="flex-1 min-h-[48px] py-2 text-[16px] text-surface-text"
                     selectionColor={SURFACE.accent}
                     cursorColor={SURFACE.accent}
-                    value={employeeCode}
+                    value={email}
                     onChangeText={(value) => {
-                      setEmployeeCode(value);
+                      setEmail(value);
+                      setIsEmailTouched(true);
                       setErrorMessage(null);
+                      clearResetNotice();
                     }}
-                    onFocus={() => setFocusedField('employeeCode')}
-                    onBlur={() => setFocusedField(null)}
+                    onFocus={() => setFocusedField('email')}
+                    onBlur={() => {
+                      setFocusedField(null);
+                      setIsEmailTouched(true);
+                    }}
                     onSubmitEditing={() => passwordRef.current?.focus()}
                     submitBehavior="submit"
                     autoCapitalize="none"
                     autoCorrect={false}
-                    autoComplete="username"
-                    textContentType="username"
+                    autoComplete="email"
+                    textContentType="emailAddress"
+                    keyboardType="email-address"
                     returnKeyType="next"
-                    accessibilityLabel="Código de empleado"
+                    accessibilityLabel="Correo electrónico"
                   />
-                </View>
+                </AnimatedInputFrame>
               </View>
 
-              <View style={styles.field}>
+              <View className="gap-2">
                 <ThemedText type="smallBold">Clave</ThemedText>
-                <View style={fieldStyle('password')}>
+                <AnimatedInputFrame
+                  state={passwordState}
+                  palette={SURFACE}
+                  showStatusIcon={passwordState === 'error'}
+                  className="min-h-[52px] flex-row items-center gap-2 rounded-sm border-[1px] px-4">
                   <LockKeyhole color={SURFACE.accent} size={20} />
                   <TextInput
                     ref={passwordRef}
-                    style={[styles.input, { color: SURFACE.text }]}
+                    className="flex-1 min-h-[48px] py-2 text-[16px] text-surface-text"
                     selectionColor={SURFACE.accent}
                     cursorColor={SURFACE.accent}
                     value={password}
                     onChangeText={(value) => {
                       setPassword(value);
                       setErrorMessage(null);
+                      clearResetNotice();
                     }}
                     onFocus={() => setFocusedField('password')}
                     onBlur={() => setFocusedField(null)}
@@ -151,40 +206,72 @@ export default function LoginScreen() {
                     returnKeyType="go"
                     accessibilityLabel="Clave"
                   />
-                </View>
+                </AnimatedInputFrame>
               </View>
 
-              {errorMessage !== null && <Notice tone="error">{errorMessage}</Notice>}
-
               <Pressable
-                onPress={handleSubmit}
+                onPress={(event) =>
+                  navigateWithReveal(event, () =>
+                    router.push({ pathname: '/recuperar-clave', params: { email } }),
+                  )
+                }
                 disabled={isSubmitting}
                 accessibilityRole="button"
-                accessibilityLabel="Ingresar"
-                accessibilityState={{ busy: isSubmitting }}
-                style={({ pressed }) => [
-                  styles.submitButton,
-                  { backgroundColor: pressed ? theme.brand : theme.accent },
-                  pressed && styles.pressed,
-                  isSubmitting && styles.disabled,
-                ]}>
-                {isSubmitting ? (
-                  <ActivityIndicator color={theme.onAccent} size="small" />
-                ) : (
-                  <LogIn color={theme.onAccent} size={20} />
-                )}
+                accessibilityLabel="Olvidé mi clave"
+                hitSlop={Spacing.two}
+                className="self-end active:scale-[0.98]">
                 <ThemedText
                   type="smallBold"
                   maxFontSizeMultiplier={ChromeFontScale}
-                  style={[styles.buttonLabel, { color: theme.onAccent }]}>
-                  {isSubmitting ? 'Verificando…' : 'Ingresar'}
+                  themeColor="infoForeground">
+                  ¿Olvidaste tu contraseña?
                 </ThemedText>
               </Pressable>
+
+              {params.notice === PASSWORD_RESET_SENT_NOTICE && (
+                <Notice tone="success" title="Revise su correo">
+                  Si el correo tiene una cuenta, le llegará un enlace para crear una clave nueva.
+                  Después de cambiarla, ingrese aquí. Si no lo encuentra, revise la carpeta de
+                  correo no deseado.
+                </Notice>
+              )}
+              {errorMessage !== null && <Notice tone="error">{errorMessage}</Notice>}
+
+              <AnimatedButton
+                label="Ingresar"
+                busyLabel="Verificando…"
+                icon={LogIn}
+                status={isSubmitting ? 'busy' : 'idle'}
+                onPress={handleSubmit}
+                className="mt-2"
+              />
+
+              <View className="min-h-[48px] flex-row flex-wrap items-center justify-center gap-1">
+                <ThemedText type="small" themeColor="textSecondary">
+                  ¿No tiene una cuenta?
+                </ThemedText>
+                <Pressable
+                  onPress={(event) =>
+                    navigateWithReveal(event, () => router.push('/crear-cuenta'))
+                  }
+                  disabled={isSubmitting}
+                  accessibilityRole="button"
+                  accessibilityLabel="Crear cuenta"
+                  hitSlop={Spacing.three}
+                  className="active:scale-[0.98]">
+                  <ThemedText
+                    type="smallBold"
+                    maxFontSizeMultiplier={ChromeFontScale}
+                    themeColor="infoForeground">
+                    Crear cuenta
+                  </ThemedText>
+                </Pressable>
+              </View>
             </View>
 
-            <View style={[styles.footer, { borderTopColor: theme.border }]}>
+            <View className="flex-row items-start gap-2 border-t-[0.5px] pt-4 border-t-border">
               <ShieldCheck color={theme.textSecondary} size={16} />
-              <ThemedText type="small" themeColor="textSecondary" style={styles.footerText}>
+              <ThemedText type="small" themeColor="textSecondary" className="flex-1">
                 Uso exclusivo del personal técnico de EPMAPS. No comparta su clave.
               </ThemedText>
             </View>
@@ -195,104 +282,3 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: ScreenPadding,
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  content: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    gap: Spacing.four,
-    paddingVertical: Spacing.four,
-  },
-  brand: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
-  },
-  brandMark: {
-    width: 56,
-    height: 56,
-    borderRadius: Radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  brandText: {
-    flex: 1,
-    gap: Spacing.half,
-  },
-  // Línea corta de acento que separa la identidad del formulario.
-  brandRule: {
-    width: 48,
-    height: 3,
-    borderRadius: Radius.pill,
-  },
-  form: {
-    gap: Spacing.three,
-  },
-  formHeader: {
-    gap: Spacing.one,
-    marginBottom: Spacing.one,
-  },
-  formTitle: {
-    fontWeight: '700',
-  },
-  field: {
-    gap: Spacing.two,
-  },
-  inputRow: {
-    minHeight: 52,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    borderRadius: Radius.sm,
-    borderWidth: 1,
-    paddingHorizontal: Spacing.three,
-  },
-  inputRowFocused: {
-    borderWidth: 2,
-    paddingHorizontal: Spacing.three - 1,
-  },
-  input: {
-    flex: 1,
-    minHeight: 48,
-    paddingVertical: Spacing.two,
-    fontSize: 16,
-  },
-  submitButton: {
-    marginTop: Spacing.two,
-    minHeight: 54,
-    flexDirection: 'row',
-    gap: Spacing.two,
-    borderRadius: Radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.four,
-  },
-  buttonLabel: {
-    fontSize: 16,
-  },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.two,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: Spacing.three,
-  },
-  footerText: {
-    flex: 1,
-  },
-  pressed: {
-    transform: [{ scale: 0.98 }],
-  },
-  disabled: {
-    opacity: 0.6,
-  },
-});

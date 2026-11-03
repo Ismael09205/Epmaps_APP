@@ -1,5 +1,3 @@
-import '@/global.css';
-
 import { Platform } from 'react-native';
 
 // Paleta EPMAPS: blanco dominante, #243376 para texto y estructura, #1E72BA solo para la acción

@@ -307,6 +307,25 @@ export async function countUnsentReadings(employeeCode: string): Promise<number>
   return row?.count ?? 0;
 }
 
+export type PeriodSyncSummary = { sent: number; pending: number };
+
+export async function summarizePeriodSync(
+  employeeCode: string,
+  month: string,
+): Promise<PeriodSyncSummary> {
+  const database = await getDatabase();
+  const rows = await database.getAllAsync<{ sync_status: string; count: number }>(
+    `SELECT sync_status, COUNT(*) AS count FROM meter_readings WHERE employee_code = ? AND ${READING_MONTH_SQL} = ? GROUP BY sync_status`,
+    employeeCode,
+    month,
+  );
+
+  return {
+    sent: rows.find((row) => row.sync_status === 'sent')?.count ?? 0,
+    pending: rows.find((row) => row.sync_status === 'pending')?.count ?? 0,
+  };
+}
+
 // Solo marca como enviado un registro que seguía pendiente y sin corregir desde que se leyó;
 // el registro y su foto se conservan.
 export async function markReadingSent(

@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { useRouter } from 'expo-router';
-import { useIsMutating, useQuery } from '@tanstack/react-query';
+import { useIsMutating } from '@tanstack/react-query';
 import {
   CircleAlert,
   CircleCheck,
@@ -7,18 +8,32 @@ import {
   CloudUpload,
   Gauge,
   LogOut,
+  Pencil,
 } from 'lucide-react-native';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ActivityIndicator, Pressable, View } from 'react-native';
+import Animated, {
+  interpolate,
+  useAnimatedRef,
+  useAnimatedStyle,
+  useScrollOffset,
+} from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useSession } from '@/auth/session-context';
 import { useIsOnline } from '@/components/connection-banner';
+import { AnimatedButton } from '@/components/motion/animated-button';
+import { useCircularNavigation } from '@/components/motion/circular-transition';
+import { ExpandableContent, ExpandChevron } from '@/components/motion/expandable';
+import { FloatingCard } from '@/components/motion/floating-card';
+import { AnimatedCount, SyncProgressBar } from '@/components/motion/sync-indicators';
+import { SafeAreaView } from '@/components/styled';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { ChromeFontScale, Radius, ScreenPadding, Spacing } from '@/constants/theme';
+import { ChromeFontScale, Spacing } from '@/constants/theme';
+import { usePendingSyncCount } from '@/hooks/use-pending-sync-count';
+import { useSyncPeriodSummary } from '@/hooks/use-sync-period-summary';
 import { useTheme } from '@/hooks/use-theme';
-import { pendingSyncCountQueryKey, READING_SYNC_MUTATION_KEY } from '@/query/reading-sync';
-import { countUnsentReadings } from '@/storage/readings';
+import { READING_SYNC_MUTATION_KEY } from '@/query/reading-sync';
 
 const PERIOD_FORMAT = new Intl.DateTimeFormat('es-EC', {
   timeZone: 'America/Guayaquil',
@@ -56,33 +71,61 @@ const FIELD_TIPS = [
   },
 ] as const;
 
+const HEADER_COLLAPSE_DISTANCE = 90;
+const SUMMARY_PARALLAX = 0.18;
+
 function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 export default function HomeScreen() {
-  const { technician, signOut } = useSession();
+  const { technician: currentTechnician, displayName, signOut } = useSession();
+  // Al salir, la pantalla sigue visible hasta que el círculo la cubre: conserva lo último mostrado.
+  const [lastTechnician, setLastTechnician] = useState(currentTechnician);
+  const [lastDisplayName, setLastDisplayName] = useState(displayName);
+  if (currentTechnician && currentTechnician !== lastTechnician) {
+    setLastTechnician(currentTechnician);
+  }
+  if (currentTechnician && displayName !== lastDisplayName) {
+    setLastDisplayName(displayName);
+  }
+  const technician = currentTechnician ?? lastTechnician;
+
   const theme = useTheme();
   const router = useRouter();
+  const { navigateWithReveal } = useCircularNavigation();
+  const [openTip, setOpenTip] = useState<string | null>(null);
+  const scrollRef = useAnimatedRef<Animated.ScrollView>();
+  const scrollOffset = useScrollOffset(scrollRef);
+  // El encabezado se encoge y se aparta al desplazar.
+  const headerStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(scrollOffset.get(), [0, HEADER_COLLAPSE_DISTANCE], [1, 0.35], 'clamp'),
+    transform: [
+      { translateY: interpolate(scrollOffset.get(), [0, HEADER_COLLAPSE_DISTANCE], [0, 14], 'clamp') },
+      { scale: interpolate(scrollOffset.get(), [0, HEADER_COLLAPSE_DISTANCE], [1, 0.94], 'clamp') },
+    ],
+  }));
+  // El resumen se queda atrás del resto del contenido, que pasa por encima.
+  const summaryStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(scrollOffset.get(), [80, 320], [1, 0.5], 'clamp'),
+    transform: [{ translateY: Math.max(0, scrollOffset.get()) * SUMMARY_PARALLAX }],
+  }));
   const insets = useSafeAreaInsets();
   const employeeCode = technician?.employeeCode ?? '';
-  // HU-009 CA-04: se actualiza al guardar registros y al terminar cada envío.
-  const pendingQuery = useQuery({
-    queryKey: pendingSyncCountQueryKey(employeeCode),
-    queryFn: () => countUnsentReadings(employeeCode),
-    enabled: employeeCode !== '',
-    networkMode: 'always',
-  });
+  const pendingQuery = usePendingSyncCount(employeeCode);
+  const periodSummary = useSyncPeriodSummary(employeeCode).data;
   const isOnline = useIsOnline();
   const isSyncing = useIsMutating({ mutationKey: READING_SYNC_MUTATION_KEY }) > 0;
   const pendingCount = pendingQuery.data;
 
   if (!technician) {
     // Solo se monta con sesión iniciada; al cerrar sesión el layout redirige a /login.
-    return <ThemedView style={styles.container} />;
+    return <ThemedView className="flex-1" />;
   }
 
   const now = new Date();
+  const hasPeriodReadings =
+    periodSummary !== undefined && periodSummary.sent + periodSummary.pending > 0;
   const pendingStatus = pendingQuery.isError
     ? {
         Icon: CircleAlert,
@@ -93,7 +136,10 @@ export default function HomeScreen() {
       : pendingCount === 0
         ? {
             Icon: CircleCheck,
-            text: 'Todas las lecturas fueron enviadas.',
+            // Sin lecturas en el período no hay nada que se haya enviado todavía.
+            text: hasPeriodReadings
+              ? 'Todas las lecturas fueron enviadas.'
+              : 'No hay lecturas por enviar.',
           }
         : isOnline
           ? {
@@ -107,22 +153,22 @@ export default function HomeScreen() {
   const StatusIcon = pendingStatus.Icon;
 
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={['left', 'right']}>
-        <ScrollView contentContainerStyle={styles.content}>
-          <View style={styles.header}>
-            <View style={styles.identity}>
+    <ThemedView className="flex-1">
+      <SafeAreaView className="flex-1" edges={['left', 'right']}>
+        <Animated.ScrollView ref={scrollRef} contentContainerClassName="px-5 pt-6 pb-8 gap-6">
+          <Animated.View className="flex-row justify-between items-start gap-4" style={headerStyle}>
+            <View className="gap-1 shrink">
               <ThemedText type="caption" themeColor="infoForeground">
                 {capitalize(TODAY_FORMAT.format(now))}
               </ThemedText>
               <ThemedText type="heading" numberOfLines={2}>
-                {`${technician.name} ${technician.surname}`}
+                {lastDisplayName ?? `${technician.name} ${technician.surname}`}
               </ThemedText>
-              <View style={styles.employeeRow}>
+              <View className="flex-row items-baseline flex-wrap gap-2">
                 <ThemedText type="small" themeColor="textSecondary">
                   Código de empleado
                 </ThemedText>
-                <ThemedText type="data" style={styles.employeeCode}>
+                <ThemedText type="data" className="text-[14px] leading-[20px]">
                   {technician.employeeCode}
                 </ThemedText>
               </View>
@@ -133,7 +179,7 @@ export default function HomeScreen() {
               accessibilityRole="button"
               accessibilityLabel="Cerrar sesión"
               hitSlop={Spacing.two}
-              style={({ pressed }) => [styles.signOutButton, pressed && styles.pressed]}>
+              className="min-h-[44px] flex-row items-center gap-[6px] pl-2 active:scale-[0.98]">
               <LogOut color={theme.textSecondary} size={18} />
               <ThemedText
                 type="smallBold"
@@ -142,214 +188,122 @@ export default function HomeScreen() {
                 Salir
               </ThemedText>
             </Pressable>
-          </View>
+          </Animated.View>
+
+          <AnimatedButton
+            label="Editar nombre"
+            icon={Pencil}
+            variant="secondary"
+            onPress={(event) => navigateWithReveal(event, () => router.push('/editar-nombre'))}
+          />
 
           {/* Elemento distintivo de la pantalla: el período en curso y el estado de envío. */}
-          <View style={[styles.periodPanel, { backgroundColor: theme.brand }]}>
-            <View style={styles.periodBlock}>
-              <ThemedText type="caption" style={{ color: theme.onBrandSecondary }}>
-                Período de lectura
-              </ThemedText>
-              <ThemedText type="heading" style={{ color: theme.onBrand }}>
-                {capitalize(PERIOD_FORMAT.format(now))}
-              </ThemedText>
-            </View>
-
-            <View style={[styles.periodDivider, { backgroundColor: theme.onBrandSecondary }]} />
-
-            <View accessibilityLiveRegion="polite" style={styles.pendingRow}>
-              <View style={styles.pendingFigure}>
-                <ThemedText type="display" style={{ color: theme.onBrand }}>
-                  {pendingCount === undefined ? '…' : String(pendingCount)}
+          <Animated.View style={summaryStyle}>
+            <FloatingCard
+              layerColor={theme.brand}
+              className="rounded-lg p-5 gap-4 bg-brand">
+              <View className="gap-1">
+                <ThemedText type="caption" className="text-on-brand-secondary">
+                  Período de lectura
                 </ThemedText>
-                <ThemedText type="caption" style={{ color: theme.onBrandSecondary }}>
-                  Pendientes de envío
+                <ThemedText type="heading" className="text-on-brand">
+                  {capitalize(PERIOD_FORMAT.format(now))}
                 </ThemedText>
               </View>
-              <View style={styles.pendingStatus}>
-                {StatusIcon ? (
-                  <StatusIcon color={theme.onBrand} size={18} />
-                ) : (
-                  <ActivityIndicator color={theme.onBrand} size="small" />
-                )}
-                <ThemedText type="small" style={[styles.flexText, { color: theme.onBrand }]}>
-                  {pendingStatus.text}
-                </ThemedText>
-              </View>
-            </View>
-          </View>
 
-          <View style={styles.tips}>
-            <View style={styles.tipsHeader}>
+              <View className="h-[0.5px] opacity-60 bg-on-brand-secondary" />
+
+              <View accessibilityLiveRegion="polite" className="gap-2">
+                {/* Cifra y mensaje en filas separadas: el mensaje usa todo el ancho de la tarjeta. */}
+                <View className="flex-row items-center gap-3">
+                  <AnimatedCount value={pendingCount}>
+                    <ThemedText type="display" className="text-on-brand">
+                      {pendingCount === undefined ? '…' : String(pendingCount)}
+                    </ThemedText>
+                  </AnimatedCount>
+                  <ThemedText type="caption" className="flex-1 text-on-brand-secondary">
+                    Pendientes de envío
+                  </ThemedText>
+                </View>
+                <View className="flex-row items-center gap-2">
+                  {StatusIcon ? (
+                    <StatusIcon color={theme.onBrand} size={18} />
+                  ) : (
+                    <ActivityIndicator color={theme.onBrand} size="small" />
+                  )}
+                  <ThemedText type="small" className="flex-1 text-on-brand">
+                    {pendingStatus.text}
+                  </ThemedText>
+                </View>
+              </View>
+
+              {hasPeriodReadings && periodSummary && (
+                <SyncProgressBar
+                  sent={periodSummary.sent}
+                  pending={periodSummary.pending}
+                  trackColor={`${theme.onBrandSecondary}40`}
+                  fillColor={theme.onBrand}
+                  textColor={theme.onBrand}
+                />
+              )}
+            </FloatingCard>
+          </Animated.View>
+
+          <View className="gap-1 bg-background">
+            <View className="gap-1 mb-2">
               <ThemedText type="caption" themeColor="infoForeground">
                 Antes de registrar
               </ThemedText>
               <ThemedText type="heading">Consejos para el técnico</ThemedText>
             </View>
-            {FIELD_TIPS.map(({ title, text }, index) => (
-              <View key={title} style={[styles.tip, { borderTopColor: theme.border }]}>
-                <ThemedText type="data" themeColor="accent" style={styles.tipNumber}>
-                  {String(index + 1).padStart(2, '0')}
-                </ThemedText>
-                <View style={styles.tipBody}>
-                  <ThemedText type="smallBold">{title}</ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {text}
+            {FIELD_TIPS.map(({ title, text }, index) => {
+              const expanded = openTip === title;
+
+              return (
+                <Pressable
+                  key={title}
+                  onPress={() => setOpenTip(expanded ? null : title)}
+                  accessibilityRole="button"
+                  accessibilityLabel={title}
+                  accessibilityState={{ expanded }}
+                  className="flex-row items-start gap-4 border-t-[0.5px] py-4 border-t-border">
+                  <ThemedText type="data" themeColor="accent" className="min-w-[24px]">
+                    {String(index + 1).padStart(2, '0')}
                   </ThemedText>
-                </View>
-              </View>
-            ))}
+                  <View className="flex-1 gap-[2px]">
+                    <View className="flex-row items-center gap-2">
+                      <ThemedText type="smallBold" className="flex-1">
+                        {title}
+                      </ThemedText>
+                      <ExpandChevron expanded={expanded} color={theme.textSecondary} />
+                    </View>
+                    <ExpandableContent expanded={expanded}>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {text}
+                      </ThemedText>
+                    </ExpandableContent>
+                  </View>
+                </Pressable>
+              );
+            })}
           </View>
-        </ScrollView>
+        </Animated.ScrollView>
 
         {/* Acción principal fija en la zona del pulgar. */}
         <View
-          style={[
-            styles.footer,
-            {
-              backgroundColor: theme.background,
-              borderTopColor: theme.border,
-              paddingBottom: insets.bottom + Spacing.three,
-            },
-          ]}>
+          className="border-t-[0.5px] px-5 pt-4 gap-2 bg-background border-t-border" style={{ paddingBottom: insets.bottom + Spacing.three }}>
           <ThemedText type="small" themeColor="textSecondary">
             Tenga a mano la etiqueta MED del medidor.
           </ThemedText>
-          <Pressable
-            onPress={() => router.push('/medidor')}
-            accessibilityRole="button"
-            accessibilityLabel="Identificar medidor"
+          <AnimatedButton
+            label="Identificar medidor"
             accessibilityHint="Abre la pantalla para ingresar el código del medidor."
-            style={({ pressed }) => [
-              styles.identifyMeterButton,
-              { backgroundColor: pressed ? theme.brand : theme.accent },
-              pressed && styles.pressed,
-            ]}>
-            <Gauge color={theme.onAccent} size={22} />
-            <ThemedText
-              type="smallBold"
-              maxFontSizeMultiplier={ChromeFontScale}
-              style={[styles.buttonLabel, { color: theme.onAccent }]}>
-              Identificar medidor
-            </ThemedText>
-          </Pressable>
+            icon={Gauge}
+            onPress={(event) => navigateWithReveal(event, () => router.push('/medidor'))}
+          />
         </View>
       </SafeAreaView>
     </ThemedView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  safeArea: {
-    flex: 1,
-  },
-  content: {
-    paddingHorizontal: ScreenPadding,
-    paddingTop: Spacing.four,
-    paddingBottom: Spacing.five,
-    gap: Spacing.four,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: Spacing.three,
-  },
-  identity: {
-    gap: Spacing.one,
-    flexShrink: 1,
-  },
-  employeeRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    flexWrap: 'wrap',
-    gap: Spacing.two,
-  },
-  employeeCode: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  signOutButton: {
-    minHeight: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.one + Spacing.half,
-    paddingLeft: Spacing.two,
-  },
-  periodPanel: {
-    borderRadius: Radius.lg,
-    padding: Spacing.four - Spacing.one,
-    gap: Spacing.three,
-  },
-  periodBlock: {
-    gap: Spacing.one,
-  },
-  periodDivider: {
-    height: StyleSheet.hairlineWidth,
-    opacity: 0.6,
-  },
-  pendingRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: Spacing.three,
-  },
-  pendingFigure: {
-    gap: Spacing.half,
-  },
-  pendingStatus: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.two,
-    paddingBottom: Spacing.half,
-  },
-  tips: {
-    gap: Spacing.one,
-  },
-  tipsHeader: {
-    gap: Spacing.one,
-    marginBottom: Spacing.two,
-  },
-  // Lista agrupada con divisores finos en lugar de tarjetas.
-  tip: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.three,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingVertical: Spacing.three,
-  },
-  tipNumber: {
-    minWidth: 24,
-  },
-  tipBody: {
-    flex: 1,
-    gap: Spacing.half,
-  },
-  footer: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: ScreenPadding,
-    paddingTop: Spacing.three,
-    gap: Spacing.two,
-  },
-  identifyMeterButton: {
-    minHeight: 56,
-    flexDirection: 'row',
-    gap: Spacing.two,
-    borderRadius: Radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.three,
-  },
-  buttonLabel: {
-    fontSize: 16,
-  },
-  flexText: {
-    flex: 1,
-  },
-  pressed: {
-    transform: [{ scale: 0.98 }],
-  },
-});
