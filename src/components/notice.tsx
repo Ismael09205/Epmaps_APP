@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { CircleAlert, CircleCheck, Info, TriangleAlert } from 'lucide-react-native';
-import { ActivityIndicator, View, type StyleProp, type ViewStyle } from 'react-native';
+import { View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -8,6 +8,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { WaterLoadingAnimation } from '@/components/lottie/animations';
 import { SuccessKeyframe } from '@/components/motion/success-keyframe';
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
@@ -105,13 +106,13 @@ export function Notice({
         <Animated.View
           accessibilityLiveRegion="polite"
           className="flex-row gap-2 border-l-[4px] rounded-sm py-3 px-4" style={[{ backgroundColor: palette.background, borderLeftColor: palette.foreground }, style, slideStyle]}>
-          <View className="w-[20px] min-h-[20px] items-center pt-[1px]">
+          <View className={`${Icon ? 'w-[20px]' : 'w-[24px]'} min-h-[20px] items-center pt-[1px]`}>
             {Icon ? (
               <Animated.View entering={tone === 'success' ? SuccessKeyframe : undefined}>
                 <Icon color={palette.foreground} size={20} strokeWidth={2.25} />
               </Animated.View>
             ) : (
-              <ActivityIndicator color={palette.foreground} size="small" />
+              <WaterLoadingAnimation size={24} />
             )}
           </View>
           <View className="flex-1 gap-[2px]">

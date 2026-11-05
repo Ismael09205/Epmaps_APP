@@ -10,7 +10,7 @@ import {
   LogOut,
   Pencil,
 } from 'lucide-react-native';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import Animated, {
   interpolate,
   useAnimatedRef,
@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useSession } from '@/auth/session-context';
 import { useIsOnline } from '@/components/connection-banner';
+import { CloudSyncAnimation, WaterLoadingAnimation } from '@/components/lottie/animations';
 import { AnimatedButton } from '@/components/motion/animated-button';
 import { useCircularNavigation } from '@/components/motion/circular-transition';
 import { ExpandableContent, ExpandChevron } from '@/components/motion/expandable';
@@ -226,10 +227,15 @@ export default function HomeScreen() {
                   </ThemedText>
                 </View>
                 <View className="flex-row items-center gap-2">
-                  {StatusIcon ? (
+                  {pendingStatus.Icon === CloudOff ? (
+                    <CloudSyncAnimation
+                      size={24}
+                      colors={{ primary: theme.onBrand, secondary: theme.onBrandSecondary, base: theme.brand }}
+                    />
+                  ) : StatusIcon ? (
                     <StatusIcon color={theme.onBrand} size={18} />
                   ) : (
-                    <ActivityIndicator color={theme.onBrand} size="small" />
+                    <WaterLoadingAnimation size={24} />
                   )}
                   <ThemedText type="small" className="flex-1 text-on-brand">
                     {pendingStatus.text}

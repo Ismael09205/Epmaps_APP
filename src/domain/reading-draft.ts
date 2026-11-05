@@ -1,5 +1,6 @@
 import type { Meter } from './meter';
 import type { ReadingFormInput } from './reading';
+import type { ReadingLocation } from './reading-location';
 
 // HU-008: captura en curso de un técnico, desde que ingresa el código del medidor.
 export type ReadingDraft = {
@@ -8,6 +9,7 @@ export type ReadingDraft = {
   form: ReadingFormInput;
   meterReviewConfirmed: boolean;
   photoUri: string | null;
+  location: ReadingLocation | null;
   // Ficha usada en la captura, para continuar sin conexión si la caché venció.
   meter: Meter | null;
   updatedAt: string;

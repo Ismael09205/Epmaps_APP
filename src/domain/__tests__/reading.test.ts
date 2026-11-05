@@ -28,6 +28,14 @@ const meter = {
 
 const recordedAt = new Date('2026-10-27T15:30:00.000Z');
 
+const location = {
+  latitude: -0.180653,
+  longitude: -78.467834,
+  accuracy: 8,
+  source: 'gps' as const,
+  capturedAt: '2026-10-27T15:29:00.000Z',
+};
+
 const emptyForm = {
   condition: null,
   value: '',
@@ -248,6 +256,8 @@ describe('createMeterReading con consumo elevado', () => {
     meterCode: 'MED-123456',
     meter,
     recordedAt,
+
+    location,
     isOnline: false,
     details: { condition: 'normal' as const, value: 200 },
   };
@@ -364,6 +374,8 @@ describe('createMeterReading', () => {
     meterCode: 'MED-123456',
     meter,
     recordedAt,
+
+    location,
     meterReviewConfirmed: false,
     photoUri: null,
   };
@@ -394,6 +406,7 @@ describe('createMeterReading', () => {
       consumptionCheck: 'normal',
       meterReviewConfirmed: false,
       photoUri: null,
+      location,
     });
   });
 
@@ -500,6 +513,8 @@ describe('verifyReading', () => {
     details: { condition: 'normal', value: 118 },
     meter,
     recordedAt,
+
+    location,
     isOnline: false,
     meterReviewConfirmed: false,
     photoUri: null,
@@ -530,6 +545,8 @@ describe('verifyReading', () => {
       details: { condition: 'inaccessible', inaccessibleReason: 'Portón cerrado' },
       meter,
       recordedAt,
+
+      location,
       isOnline: false,
       meterReviewConfirmed: false,
       photoUri: null,
@@ -582,6 +599,8 @@ describe('HU-010', () => {
       details: { condition: 'normal', value: 125.5 },
       meter,
       recordedAt,
+
+      location,
       isOnline: false,
       meterReviewConfirmed: false,
       photoUri: null,
@@ -602,6 +621,8 @@ describe('HU-010', () => {
         photoUri: 'file:///documents/reading-photos/MED-123456-2.jpg',
         isOnline: false,
         correctedAt,
+
+        location,
       }),
     ).toMatchObject({
       id: 3,
@@ -623,6 +644,8 @@ describe('HU-010', () => {
         photoUri: null,
         isOnline: false,
         correctedAt,
+
+        location,
       }),
     ).toThrow('La foto del medidor es obligatoria si el medidor está dañado.');
   });
@@ -637,8 +660,85 @@ describe('HU-010', () => {
           photoUri: null,
           isOnline: true,
           correctedAt,
+
+          location,
         },
       ),
     ).toThrow('Un registro enviado no se puede corregir.');
+  });
+});
+
+describe('ubicación del medidor', () => {
+  const base = {
+    employeeCode: 'EPM-1001',
+    meterCode: 'MED-123456',
+    meter,
+    recordedAt,
+    isOnline: false,
+    meterReviewConfirmed: false,
+    photoUri: 'file:///documents/reading-photos/MED-123456-1.jpg',
+  };
+  const details = [
+    { condition: 'normal', value: 125.5 },
+    { condition: 'inaccessible', inaccessibleReason: 'Portón cerrado' },
+    { condition: 'damaged', damageDescription: 'Vidrio roto', value: null },
+  ] as const;
+
+  it.each(details)('es obligatoria con el medidor $condition', (detail) => {
+    expect(() => createMeterReading({ ...base, details: detail, location: null })).toThrow(
+      'Registre la ubicación del medidor.',
+    );
+    expect(createMeterReading({ ...base, details: detail, location })).toMatchObject({ location });
+  });
+
+  it('rechaza coordenadas fuera de rango', () => {
+    expect(() =>
+      createMeterReading({
+        ...base,
+        details: details[0],
+        location: { ...location, latitude: 95 },
+      }),
+    ).toThrow('La ubicación del medidor no es válida.');
+  });
+
+  it('acepta una ubicación GPS de precisión baja y la ubicación manual sin precisión', () => {
+    const lowAccuracy = { ...location, accuracy: 250 };
+    const manual = { ...location, accuracy: null, source: 'manual' as const };
+
+    expect(createMeterReading({ ...base, details: details[0], location: lowAccuracy }).location).toEqual(
+      lowAccuracy,
+    );
+    expect(createMeterReading({ ...base, details: details[0], location: manual }).location).toEqual(
+      manual,
+    );
+  });
+
+  it('HU-010: la corrección puede cambiar la ubicación', () => {
+    const saved = {
+      ...createMeterReading({ ...base, details: details[0], location }),
+      id: 3,
+      readingUuid: '3f2b8c1e-5a4d-4e6f-9b7a-1c2d3e4f5a6b',
+      syncStatus: 'pending' as const,
+      sentAt: null,
+      updatedAt: null,
+    };
+    const manual = {
+      latitude: -0.1811,
+      longitude: -78.4681,
+      accuracy: null,
+      source: 'manual' as const,
+      capturedAt: '2026-10-28T12:59:00.000Z',
+    };
+
+    expect(
+      correctMeterReading(saved, {
+        details: details[0],
+        meterReviewConfirmed: false,
+        photoUri: null,
+        location: manual,
+        isOnline: false,
+        correctedAt: new Date('2026-10-28T13:00:00.000Z'),
+      }).location,
+    ).toEqual(manual);
   });
 });

@@ -1,4 +1,5 @@
 jest.mock('@/storage/readings', () => ({
+  listReadingLocationHistory: jest.fn(),
   listUnsentReadings: jest.fn(),
   markReadingSent: jest.fn(),
 }));
@@ -10,13 +11,18 @@ jest.mock('@/api/readings', () => ({
 
 import { postReading, ReadingNetworkError } from '@/api/readings';
 import type { MeterReading } from '@/domain/reading';
-import { listUnsentReadings, markReadingSent } from '@/storage/readings';
+import {
+  listReadingLocationHistory,
+  listUnsentReadings,
+  markReadingSent,
+} from '@/storage/readings';
 
 import { sendPendingReadings, shouldRetrySync, syncRetryDelay } from '../reading-sync';
 
 const mockedList = listUnsentReadings as jest.Mock;
 const mockedMarkSent = markReadingSent as jest.Mock;
 const mockedPost = postReading as jest.Mock;
+const mockedHistory = listReadingLocationHistory as jest.Mock;
 
 const reading: MeterReading = {
   id: 3,
@@ -41,12 +47,20 @@ const reading: MeterReading = {
   syncStatus: 'pending',
   sentAt: null,
   updatedAt: null,
+  location: {
+    latitude: -0.180653,
+    longitude: -78.467834,
+    accuracy: 8,
+    source: 'gps',
+    capturedAt: '2026-10-27T15:29:00.000Z',
+  },
 };
 const second = { ...reading, id: 4, readingUuid: '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d' };
 const now = new Date('2026-10-28T13:00:00.000Z');
 
 beforeEach(() => {
   mockedList.mockReset();
+  mockedHistory.mockReset().mockResolvedValue([]);
   mockedMarkSent.mockReset().mockResolvedValue(1);
   mockedPost.mockReset().mockResolvedValue(undefined);
 });
@@ -94,5 +108,24 @@ describe('sendPendingReadings', () => {
 
     await expect(sendPendingReadings(() => now)).resolves.toBe(0);
     expect(mockedPost).not.toHaveBeenCalled();
+  });
+});
+
+describe('ubicación en el envío', () => {
+  it('envía la ubicación y el historial de cambios del registro', async () => {
+    const change = {
+      previous: { ...reading.location!, latitude: -0.1799 },
+      next: reading.location!,
+      changedAt: '2026-10-28T12:00:00.000Z',
+    };
+    mockedList.mockResolvedValue([reading]);
+    mockedHistory.mockResolvedValue([change]);
+
+    await sendPendingReadings(() => now);
+
+    expect(mockedHistory).toHaveBeenCalledWith(3);
+    expect(mockedPost).toHaveBeenCalledWith(
+      expect.objectContaining({ location: reading.location, locationHistory: [change] }),
+    );
   });
 });

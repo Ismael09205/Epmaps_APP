@@ -2,6 +2,7 @@ import * as v from 'valibot';
 
 import { formatMeterReadingDate, getDateTimeParts, type Meter } from './meter';
 import { normalizeMeterCode } from './meter-code';
+import { requireReadingLocation, type ReadingLocation } from './reading-location';
 
 const MAX_INTEGER_DIGITS = 5;
 const MAX_DECIMAL_DIGITS = 4;
@@ -59,6 +60,8 @@ export type MeterReading = {
   sentAt: string | null;
   // HU-010: fecha de la última corrección; la fecha de registro original se conserva.
   updatedAt: string | null;
+  // Ubicación del medidor (obligatoria); null solo en registros anteriores a esta HU.
+  location: ReadingLocation | null;
 };
 
 export type SyncStatus = 'pending' | 'sent';
@@ -269,6 +272,7 @@ export function createMeterReading(input: {
   isOnline: boolean;
   meterReviewConfirmed: boolean;
   photoUri: string | null;
+  location: ReadingLocation | null;
 }): NewMeterReading {
   if (input.employeeCode.trim() === '') {
     throw new MeterReadingError('La lectura requiere el código del técnico.');
@@ -308,6 +312,8 @@ export function createMeterReading(input: {
     );
   }
 
+  const location = requireReadingLocation(input.location);
+
   const reading: NewMeterReading = {
     employeeCode: input.employeeCode,
     meterCode,
@@ -326,6 +332,7 @@ export function createMeterReading(input: {
     consumptionCheck: assessment.check,
     meterReviewConfirmed: isElevated,
     photoUri,
+    location,
   };
 
   return input.isOnline ? verifyReading(reading, input.recordedAt) : reading;
@@ -386,14 +393,16 @@ export function getReadingMonth(date: Date): string {
   return `${parts.year}-${parts.month}`;
 }
 
-// HU-010: corrige todos los campos de un registro no enviado. Se recalculan el consumo, el umbral
-// y las validaciones con la ficha guardada en el registro; la fecha de registro se conserva.
+// HU-010: corrige todos los campos de un registro no enviado, incluida la ubicación. Se recalculan
+// el consumo, el umbral y las validaciones con la ficha guardada en el registro; la fecha de
+// registro se conserva. El almacenamiento guarda el historial de los cambios de ubicación.
 export function correctMeterReading(
   existing: MeterReading,
   input: {
     details: ReadingDetails;
     meterReviewConfirmed: boolean;
     photoUri: string | null;
+    location: ReadingLocation | null;
     isOnline: boolean;
     correctedAt: Date;
   },
@@ -422,6 +431,7 @@ export function correctMeterReading(
     isOnline: input.isOnline,
     meterReviewConfirmed: input.meterReviewConfirmed,
     photoUri: input.photoUri,
+    location: input.location,
   });
 
   return {

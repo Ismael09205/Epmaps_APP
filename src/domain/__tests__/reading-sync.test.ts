@@ -24,6 +24,13 @@ const reading: MeterReading = {
   syncStatus: 'pending',
   sentAt: null,
   updatedAt: null,
+  location: {
+    latitude: -0.180653,
+    longitude: -78.467834,
+    accuracy: 8,
+    source: 'gps',
+    capturedAt: '2026-10-27T15:29:00.000Z',
+  },
 };
 
 describe('isReadingReadyToSend', () => {
@@ -63,5 +70,23 @@ describe('toReadingPayload', () => {
     expect(payload.readingId).toBe(reading.readingUuid);
     expect(payload).not.toHaveProperty('photoUri');
     expect(JSON.stringify(payload)).not.toContain('file://');
+  });
+
+  it('envía la ubicación vigente y el historial de cambios con la original', () => {
+    const original = { ...reading.location!, latitude: -0.1799 };
+    const history = [{ previous: original, next: reading.location!, changedAt: '2026-10-28T13:00:00.000Z' }];
+
+    expect(toReadingPayload(reading)).toMatchObject({ location: reading.location, locationHistory: [] });
+    expect(toReadingPayload(reading, history).locationHistory).toEqual(history);
+  });
+});
+
+describe('isReadingReadyToSend con ubicación', () => {
+  it('no envía un registro con una ubicación inválida', () => {
+    expect(isReadingReadyToSend({ ...reading, location: { ...reading.location!, latitude: 200 } })).toBe(false);
+  });
+
+  it('envía los registros anteriores a la HU sin ubicación', () => {
+    expect(isReadingReadyToSend({ ...reading, location: null })).toBe(true);
   });
 });

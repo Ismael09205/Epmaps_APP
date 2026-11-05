@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   Droplets,
@@ -15,7 +15,9 @@ import {
   View,
 } from 'react-native';
 
+import { holdSessionTransition, releaseSessionTransition } from '@/auth/login-success';
 import { useSession, type SignInResult } from '@/auth/session-context';
+import { LoginSuccessOverlay } from '@/components/login-success-overlay';
 import { AnimatedButton } from '@/components/motion/animated-button';
 import { AnimatedInputFrame, resolveInputState } from '@/components/motion/animated-input-frame';
 import { useCircularNavigation } from '@/components/motion/circular-transition';
@@ -51,6 +53,9 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  // Si la pantalla se cierra antes de terminar la confirmación, la sesión no queda detenida.
+  useEffect(() => releaseSessionTransition, []);
   const passwordRef = useRef<TextInput>(null);
   const [focusedField, setFocusedField] = useState<'email' | 'password' | null>(null);
   const [isEmailTouched, setIsEmailTouched] = useState(false);
@@ -89,10 +94,25 @@ export default function LoginScreen() {
 
     setErrorMessage(null);
     setIsSubmitting(true);
-    const result = await signIn(email, password);
-    setIsSubmitting(false);
+    // La pantalla principal espera a que se muestre la confirmación del acceso.
+    holdSessionTransition();
+    let result: SignInResult;
+    try {
+      result = await signIn(email, password);
+    } catch (error: unknown) {
+      releaseSessionTransition();
+      throw error;
+    } finally {
+      setIsSubmitting(false);
+    }
 
-    if (result !== 'ok' && result !== 'unverified') {
+    if (result === 'ok') {
+      setShowSuccess(true);
+      return;
+    }
+
+    releaseSessionTransition();
+    if (result !== 'unverified') {
       setErrorMessage(ERROR_MESSAGES[result]);
     }
   };
@@ -278,6 +298,7 @@ export default function LoginScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
+      {showSuccess && <LoginSuccessOverlay onFinish={releaseSessionTransition} />}
     </ThemedView>
   );
 }

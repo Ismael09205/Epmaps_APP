@@ -1,15 +1,20 @@
 import '@/global.css';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { DarkTheme, DefaultTheme, Redirect, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { ActivityIndicator, Platform, useColorScheme, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import {
+  isSessionTransitionHeld,
+  subscribeSessionTransitionHold,
+} from '@/auth/login-success';
 import { SessionProvider, useSession, type SessionStatus } from '@/auth/session-context';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { ConnectionBanner } from '@/components/connection-banner';
+import { ConnectionLostAlert } from '@/components/connection-lost-alert';
 import {
   CircularTransitionHost,
   ParallaxArea,
@@ -105,6 +110,7 @@ function SessionNavigator() {
               </Stack.Protected>
             </Stack>
           </ParallaxArea>
+          <ConnectionLostAlert />
         </View>
       </CircularTransitionHost>
       <PendingDraftPrompt />
@@ -124,14 +130,16 @@ function SessionTransition({
   onCovered: () => void;
 }) {
   const { runSessionTransition } = useCircularNavigation();
+  // Tras validar las credenciales se espera a que el login muestre la confirmación del acceso.
+  const isHeld = useSyncExternalStore(subscribeSessionTransitionHold, isSessionTransitionHeld);
 
   useEffect(() => {
-    if (status !== shownStatus) {
+    if (status !== shownStatus && !isHeld) {
       runSessionTransition(onCovered);
     }
     // Solo reacciona al cambio de estado; `onCovered` se crea en cada render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, shownStatus]);
+  }, [status, shownStatus, isHeld]);
 
   return null;
 }

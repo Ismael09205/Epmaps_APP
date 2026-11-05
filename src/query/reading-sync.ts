@@ -2,7 +2,11 @@ import type { QueryClient } from '@tanstack/react-query';
 
 import { postReading, ReadingNetworkError } from '@/api/readings';
 import { isReadingReadyToSend, toReadingPayload } from '@/domain/reading-sync';
-import { listUnsentReadings, markReadingSent } from '@/storage/readings';
+import {
+  listReadingLocationHistory,
+  listUnsentReadings,
+  markReadingSent,
+} from '@/storage/readings';
 
 export const READING_SYNC_MUTATION_KEY = ['reading-sync'] as const;
 
@@ -36,7 +40,8 @@ export async function sendPendingReadings(now: () => Date = () => new Date()): P
       continue;
     }
 
-    await postReading(toReadingPayload(reading));
+    const locationHistory = await listReadingLocationHistory(reading.id);
+    await postReading(toReadingPayload(reading, locationHistory));
     sentCount += await markReadingSent(reading.id, now(), reading.updatedAt);
   }
 

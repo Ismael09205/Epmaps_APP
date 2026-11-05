@@ -14,6 +14,13 @@ import {
   type ReadingStatus,
   type SyncStatus,
 } from '../domain/reading';
+import {
+  describeLocationChange,
+  isValidReadingLocation,
+  type LocationSource,
+  type ReadingLocation,
+  type ReadingLocationChange,
+} from '../domain/reading-location';
 
 const DATABASE_NAME = 'epmaps.db';
 
@@ -136,7 +143,58 @@ const MIGRATIONS = [
   `
   ALTER TABLE meter_readings ADD COLUMN updated_at TEXT;
   `,
+  // v7: ubicación del medidor (GPS o manual) con su precisión, ubicación de la captura pendiente
+  // e historial de los cambios de ubicación hechos al corregir. Los registros existentes quedan
+  // sin ubicación.
+  `
+  ALTER TABLE meter_readings ADD COLUMN latitude REAL;
+  ALTER TABLE meter_readings ADD COLUMN longitude REAL;
+  ALTER TABLE meter_readings ADD COLUMN location_accuracy REAL;
+  ALTER TABLE meter_readings ADD COLUMN location_source TEXT
+    CHECK (location_source IS NULL OR location_source IN ('gps', 'manual'));
+  ALTER TABLE meter_readings ADD COLUMN location_captured_at TEXT;
+  ALTER TABLE reading_drafts ADD COLUMN location_json TEXT;
+  CREATE TABLE reading_location_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reading_id INTEGER NOT NULL REFERENCES meter_readings (id),
+    previous_latitude REAL,
+    previous_longitude REAL,
+    previous_accuracy REAL,
+    previous_source TEXT,
+    previous_captured_at TEXT,
+    latitude REAL NOT NULL,
+    longitude REAL NOT NULL,
+    accuracy REAL,
+    source TEXT NOT NULL CHECK (source IN ('gps', 'manual')),
+    captured_at TEXT NOT NULL,
+    changed_at TEXT NOT NULL
+  );
+  CREATE INDEX reading_location_history_by_reading
+    ON reading_location_history (reading_id, id);
+  `,
 ];
+
+type LocationColumns = {
+  latitude: number | null;
+  longitude: number | null;
+  location_accuracy: number | null;
+  location_source: LocationSource | null;
+  location_captured_at: string | null;
+};
+
+type LocationHistoryRow = {
+  previous_latitude: number | null;
+  previous_longitude: number | null;
+  previous_accuracy: number | null;
+  previous_source: LocationSource | null;
+  previous_captured_at: string | null;
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+  source: LocationSource;
+  captured_at: string;
+  changed_at: string;
+};
 
 type ReadingRow = {
   id: number;
@@ -161,7 +219,7 @@ type ReadingRow = {
   sync_status: SyncStatus;
   sent_at: string | null;
   updated_at: string | null;
-};
+} & LocationColumns;
 
 type DraftRow = {
   employee_code: string;
@@ -173,6 +231,7 @@ type DraftRow = {
   meter_review_confirmed: number;
   photo_uri: string | null;
   meter_json: string | null;
+  location_json: string | null;
   updated_at: string;
 };
 
@@ -263,8 +322,9 @@ async function insertReading(
       employee_code, meter_code, condition, value, inaccessible_reason, damage_description,
       recorded_at, previous_reading, previous_reading_date, status, difference, verified_at,
       monthly_average_consumption, consumption, consumption_check, meter_review_confirmed,
-      photo_uri, reading_uuid, sync_status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      photo_uri, reading_uuid, sync_status, latitude, longitude, location_accuracy,
+      location_source, location_captured_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
     reading.employeeCode,
     reading.meterCode,
     reading.condition,
@@ -283,6 +343,7 @@ async function insertReading(
     reading.meterReviewConfirmed ? 1 : 0,
     reading.photoUri,
     readingUuid,
+    ...locationParams(reading.location),
   );
 
   return result.lastInsertRowId;
@@ -359,33 +420,123 @@ export async function findMeterReadingInMonth(
   return row ? toMeterReading(row) : null;
 }
 
-// HU-010 CA-01/CA-02: guarda la corrección solo si el registro sigue sin enviar.
+// HU-010 CA-01/CA-02: guarda la corrección solo si el registro sigue sin enviar. Si la ubicación
+// cambia, la anterior y la nueva quedan en el historial en la misma transacción.
 export async function updateReading(reading: MeterReading): Promise<void> {
   const database = await getDatabase();
-  const result = await database.runAsync(
-    `UPDATE meter_readings SET
-      condition = ?, value = ?, inaccessible_reason = ?, damage_description = ?, status = ?,
-      difference = ?, verified_at = ?, consumption = ?, consumption_check = ?,
-      meter_review_confirmed = ?, photo_uri = ?, updated_at = ?
-     WHERE id = ? AND sync_status = 'pending'`,
-    reading.condition,
-    reading.value,
-    reading.inaccessibleReason,
-    reading.damageDescription,
-    reading.status,
-    reading.difference,
-    reading.verifiedAt,
-    reading.consumption,
-    reading.consumptionCheck,
-    reading.meterReviewConfirmed ? 1 : 0,
-    reading.photoUri,
-    reading.updatedAt,
-    reading.id,
+
+  await enqueueDraftWrite(() =>
+    database.withTransactionAsync(async () => {
+      const current = await database.getFirstAsync<LocationColumns>(
+        `SELECT latitude, longitude, location_accuracy, location_source, location_captured_at
+         FROM meter_readings WHERE id = ? AND sync_status = 'pending'`,
+        reading.id,
+      );
+      if (!current) {
+        throw new MeterReadingError('Un registro enviado no se puede corregir.');
+      }
+
+      const result = await database.runAsync(
+        `UPDATE meter_readings SET
+          condition = ?, value = ?, inaccessible_reason = ?, damage_description = ?, status = ?,
+          difference = ?, verified_at = ?, consumption = ?, consumption_check = ?,
+          meter_review_confirmed = ?, photo_uri = ?, updated_at = ?, latitude = ?, longitude = ?,
+          location_accuracy = ?, location_source = ?, location_captured_at = ?
+         WHERE id = ? AND sync_status = 'pending'`,
+        reading.condition,
+        reading.value,
+        reading.inaccessibleReason,
+        reading.damageDescription,
+        reading.status,
+        reading.difference,
+        reading.verifiedAt,
+        reading.consumption,
+        reading.consumptionCheck,
+        reading.meterReviewConfirmed ? 1 : 0,
+        reading.photoUri,
+        reading.updatedAt,
+        ...locationParams(reading.location),
+        reading.id,
+      );
+      if (result.changes === 0) {
+        throw new MeterReadingError('Un registro enviado no se puede corregir.');
+      }
+
+      const change = reading.location
+        ? describeLocationChange(
+            toReadingLocation(current),
+            reading.location,
+            new Date(reading.updatedAt ?? Date.now()),
+          )
+        : null;
+      if (change) {
+        await database.runAsync(
+          `INSERT INTO reading_location_history (
+            reading_id, previous_latitude, previous_longitude, previous_accuracy, previous_source,
+            previous_captured_at, latitude, longitude, accuracy, source, captured_at, changed_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          reading.id,
+          ...locationParams(change.previous),
+          ...locationParams(change.next),
+          change.changedAt,
+        );
+      }
+    }),
+  );
+}
+
+// Cambios de ubicación de un registro, del más antiguo al más reciente.
+export async function listReadingLocationHistory(
+  readingId: number,
+): Promise<ReadingLocationChange[]> {
+  const database = await getDatabase();
+  const rows = await database.getAllAsync<LocationHistoryRow>(
+    'SELECT * FROM reading_location_history WHERE reading_id = ? ORDER BY id',
+    readingId,
   );
 
-  if (result.changes === 0) {
-    throw new MeterReadingError('Un registro enviado no se puede corregir.');
-  }
+  return rows.flatMap((row) => {
+    const next = toReadingLocation({
+      latitude: row.latitude,
+      longitude: row.longitude,
+      location_accuracy: row.accuracy,
+      location_source: row.source,
+      location_captured_at: row.captured_at,
+    });
+    if (!next) {
+      return [];
+    }
+
+    const previous = toReadingLocation({
+      latitude: row.previous_latitude,
+      longitude: row.previous_longitude,
+      location_accuracy: row.previous_accuracy,
+      location_source: row.previous_source,
+      location_captured_at: row.previous_captured_at,
+    });
+
+    return [{ previous, next, changedAt: row.changed_at }];
+  });
+}
+
+function locationParams(
+  location: ReadingLocation | null,
+): [number | null, number | null, number | null, LocationSource | null, string | null] {
+  return location
+    ? [location.latitude, location.longitude, location.accuracy, location.source, location.capturedAt]
+    : [null, null, null, null, null];
+}
+
+function toReadingLocation(columns: LocationColumns): ReadingLocation | null {
+  const location = {
+    latitude: columns.latitude,
+    longitude: columns.longitude,
+    accuracy: columns.location_accuracy,
+    source: columns.location_source,
+    capturedAt: columns.location_captured_at,
+  };
+
+  return isValidReadingLocation(location) ? location : null;
 }
 
 export async function loadDraft(employeeCode: string): Promise<ReadingDraft | null> {
@@ -440,8 +591,8 @@ export function saveDraftForm(
     await database.runAsync(
       `INSERT INTO reading_drafts (
         employee_code, meter_digits, condition, value, inaccessible_reason, damage_description,
-        meter_review_confirmed, photo_uri, meter_json, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        meter_review_confirmed, photo_uri, meter_json, location_json, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT (employee_code) DO UPDATE SET
         meter_digits = excluded.meter_digits,
         condition = excluded.condition,
@@ -451,6 +602,7 @@ export function saveDraftForm(
         meter_review_confirmed = excluded.meter_review_confirmed,
         photo_uri = excluded.photo_uri,
         meter_json = COALESCE(excluded.meter_json, reading_drafts.meter_json),
+        location_json = excluded.location_json,
         updated_at = excluded.updated_at`,
       draft.employeeCode,
       draft.meterDigits,
@@ -461,6 +613,7 @@ export function saveDraftForm(
       draft.meterReviewConfirmed ? 1 : 0,
       draft.photoUri,
       draft.meter ? JSON.stringify(draft.meter) : null,
+      draft.location ? JSON.stringify(draft.location) : null,
       now.toISOString(),
     );
   });
@@ -547,6 +700,14 @@ function toReadingDraft(row: DraftRow): ReadingDraft {
     meter = null;
   }
 
+  let location: ReadingLocation | null = null;
+  try {
+    const parsed: unknown = row.location_json ? JSON.parse(row.location_json) : null;
+    location = isValidReadingLocation(parsed) ? parsed : null;
+  } catch {
+    location = null;
+  }
+
   return {
     employeeCode: row.employee_code,
     meterDigits: row.meter_digits,
@@ -558,6 +719,7 @@ function toReadingDraft(row: DraftRow): ReadingDraft {
     },
     meterReviewConfirmed: row.meter_review_confirmed === 1,
     photoUri: row.photo_uri,
+    location,
     meter,
     updatedAt: row.updated_at,
   };
@@ -587,5 +749,6 @@ function toMeterReading(row: ReadingRow): MeterReading {
     syncStatus: row.sync_status,
     sentAt: row.sent_at,
     updatedAt: row.updated_at,
+    location: toReadingLocation(row),
   };
 }

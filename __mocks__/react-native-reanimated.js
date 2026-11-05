@@ -19,6 +19,7 @@ module.exports = {
   LinearTransition: layoutAnimation,
   default: { ScrollView, Text, View },
   Easing: { in: () => undefined, out: () => undefined, inOut: () => undefined, quad: undefined, cubic: undefined },
+  FadeIn: layoutAnimation,
   FadeInDown: layoutAnimation,
   FadeOut: layoutAnimation,
   ZoomIn: layoutAnimation,

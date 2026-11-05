@@ -5,6 +5,7 @@ import { Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useSession } from '@/auth/session-context';
+import { CloudSyncAnimation } from '@/components/lottie/animations';
 import { Spacing } from '@/constants/theme';
 import { usePendingSyncCount } from '@/hooks/use-pending-sync-count';
 import { useTheme } from '@/hooks/use-theme';
@@ -54,7 +55,14 @@ export function ConnectionBanner() {
       {pendingLabel && (
         <>
           <View className="w-[0.5px] h-[16px]" style={{ backgroundColor: isOnline ? theme.border : tone }} />
-          <CloudUpload color={tone} size={16} strokeWidth={2.25} />
+          {isOnline ? (
+            <CloudUpload color={tone} size={16} strokeWidth={2.25} />
+          ) : (
+            <CloudSyncAnimation
+              size={22}
+              colors={{ primary: theme.accent, secondary: tone, base: theme.background }}
+            />
+          )}
           <Text className="text-[13px] font-semibold text-center" style={{ color: textColor }}>{pendingLabel}</Text>
         </>
       )}

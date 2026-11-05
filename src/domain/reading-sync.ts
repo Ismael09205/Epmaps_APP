@@ -1,4 +1,9 @@
 import { isPhotoRequired, validateReadingForm, type MeterReading } from './reading';
+import {
+  isValidReadingLocation,
+  type ReadingLocation,
+  type ReadingLocationChange,
+} from './reading-location';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -20,6 +25,9 @@ export type ReadingPayload = {
   consumption: number | null;
   consumptionCheck: MeterReading['consumptionCheck'];
   meterReviewConfirmed: boolean;
+  // Ubicación vigente y cambios hechos al corregir: el primer cambio conserva la original.
+  location: ReadingLocation | null;
+  locationHistory: ReadingLocationChange[];
 };
 
 // HU-009: solo se envían registros completos que cumplen las validaciones de su estado.
@@ -38,6 +46,10 @@ export function isReadingReadyToSend(reading: MeterReading): boolean {
     return false;
   }
 
+  if (reading.location !== null && !isValidReadingLocation(reading.location)) {
+    return false;
+  }
+
   if (reading.consumptionCheck === 'elevated' && !reading.meterReviewConfirmed) {
     return false;
   }
@@ -45,7 +57,10 @@ export function isReadingReadyToSend(reading: MeterReading): boolean {
   return !isPhotoRequired(reading.condition, reading.consumptionCheck) || reading.photoUri !== null;
 }
 
-export function toReadingPayload(reading: MeterReading): ReadingPayload {
+export function toReadingPayload(
+  reading: MeterReading,
+  locationHistory: ReadingLocationChange[] = [],
+): ReadingPayload {
   return {
     readingId: reading.readingUuid,
     employeeCode: reading.employeeCode,
@@ -63,5 +78,7 @@ export function toReadingPayload(reading: MeterReading): ReadingPayload {
     consumption: reading.consumption,
     consumptionCheck: reading.consumptionCheck,
     meterReviewConfirmed: reading.meterReviewConfirmed,
+    location: reading.location,
+    locationHistory,
   };
 }

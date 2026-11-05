@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type ComponentProps } from 'react';
+import { BlurTargetView } from 'expo-blur';
 import { useLocalSearchParams } from 'expo-router';
 import { onlineManager, useIsMutating, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ActivityIndicator,
   Keyboard,
   KeyboardAvoidingView,
   Pressable,
@@ -38,12 +38,20 @@ import {
 
 import { useIsOnline } from '@/components/connection-banner';
 import { MeterPhotoCapture } from '@/components/meter-photo-capture';
+import { LocationMapPreview } from '@/components/location-map-preview';
+import { LocationSummary } from '@/components/location-summary';
+import {
+  CloudSyncAnimation,
+  SuccessAnimation,
+  WaterLoadingAnimation,
+} from '@/components/lottie/animations';
+import { OfflineMapPrompt } from '@/components/offline-map-prompt';
+import { ReadingLocationMap } from '@/components/reading-location-map';
 import { AnimatedButton, useSuccessFlash } from '@/components/motion/animated-button';
 import { AnimatedInputFrame, resolveInputState } from '@/components/motion/animated-input-frame';
 import { ExpandableContent, ExpandChevron, RevealSection } from '@/components/motion/expandable';
 import { FieldMessage } from '@/components/motion/field-message';
 import { FloatingCard } from '@/components/motion/floating-card';
-import { SuccessKeyframe } from '@/components/motion/success-keyframe';
 import { SwipeAction } from '@/components/motion/swipe-action';
 import { SyncStatusPill } from '@/components/motion/sync-indicators';
 import { Notice } from '@/components/notice';
@@ -78,6 +86,7 @@ import {
   type ReadingFormInput,
   type ReadingMeterContext,
 } from '@/domain/reading';
+import type { ReadingLocation } from '@/domain/reading-location';
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/auth/session-context';
 import { fetchMeter } from '@/api/meters';
@@ -140,6 +149,7 @@ export default function MeterScreen() {
   const theme = useTheme();
   const queryClient = useQueryClient();
   const { restoreDraft } = useLocalSearchParams<{ restoreDraft?: string }>();
+  const blurTargetRef = useRef<View>(null);
   const [digits, setDigits] = useState(meterCodeDraft);
   // MaskedTextInput copia `value` a su estado y a la vez avisa los cambios de ese estado: si recibiera
   // cada dígito escrito, al escribir rápido ambos valores se intercambiarían sin fin. Por eso solo
@@ -348,6 +358,8 @@ export default function MeterScreen() {
 
   return (
     <ThemedView className="flex-1">
+      {/* Contenido que se difumina detrás de la recomendación del mapa sin conexión. */}
+      <BlurTargetView ref={blurTargetRef} style={{ flex: 1 }}>
       <SafeAreaView className="flex-1 px-5" edges={['left', 'right', 'bottom']}>
         <KeyboardAvoidingView className="flex-1" behavior="padding">
           <ScrollView contentContainerClassName="gap-6 pt-6 pb-8" keyboardShouldPersistTaps="handled">
@@ -516,6 +528,11 @@ export default function MeterScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
+      </BlurTargetView>
+      <OfflineMapPrompt
+        meterCode={currentLookup === 'success' && displayedMeter ? meterCode : null}
+        blurTarget={blurTargetRef}
+      />
     </ThemedView>
   );
 }
@@ -556,6 +573,7 @@ type RegistrationState = {
   form: ReadingFormInput;
   meterReviewConfirmed: boolean;
   photoUri: string | null;
+  location: ReadingLocation | null;
 };
 
 function toFormInput(reading: MeterReading): ReadingFormInput {
@@ -592,6 +610,10 @@ function ReadingRegistration({
     initialDraft?.meterReviewConfirmed ?? false,
   );
   const [photoUri, setPhotoUri] = useState<string | null>(initialDraft?.photoUri ?? null);
+  // Ubicación obligatoria en los tres estados del medidor: GPS por defecto o marcador manual.
+  const [location, setLocation] = useState<ReadingLocation | null>(
+    initialDraft?.location ?? null,
+  );
   // HU-010: registro no enviado en corrección y captura nueva apartada mientras se corrige.
   const [editing, setEditing] = useState<MeterReading | null>(null);
   const stashedRegistration = useRef<RegistrationState | null>(null);
@@ -649,7 +671,8 @@ function ReadingRegistration({
     validation.success &&
     !isSaving &&
     (!isElevated || meterReviewConfirmed) &&
-    (!photoRequired || photoUri !== null);
+    (!photoRequired || photoUri !== null) &&
+    location !== null;
 
   useEffect(() => {
     if (!meter) {
@@ -666,6 +689,7 @@ function ReadingRegistration({
     form?: ReadingFormInput;
     meterReviewConfirmed?: boolean;
     photoUri?: string | null;
+    location?: ReadingLocation | null;
   }) => {
     if (editing) {
       return;
@@ -677,6 +701,7 @@ function ReadingRegistration({
       form: changes.form ?? form,
       meterReviewConfirmed: changes.meterReviewConfirmed ?? meterReviewConfirmed,
       photoUri: changes.photoUri === undefined ? photoUri : changes.photoUri,
+      location: changes.location === undefined ? location : changes.location,
       meter: meter ?? null,
     }).catch((error: unknown) => {
       console.error('No se pudo guardar la captura pendiente.', error);
@@ -708,12 +733,19 @@ function ReadingRegistration({
     }
   };
 
+  const updateLocation = (nextLocation: ReadingLocation) => {
+    setLocation(nextLocation);
+    setFeedback(null);
+    persistDraft({ location: nextLocation });
+  };
+
   const restoreRegistration = () => {
     const stashed = stashedRegistration.current;
     stashedRegistration.current = null;
     setForm(stashed?.form ?? EMPTY_FORM);
     setMeterReviewConfirmed(stashed?.meterReviewConfirmed ?? false);
     setPhotoUri(stashed?.photoUri ?? null);
+    setLocation(stashed?.location ?? null);
     setEditing(null);
   };
 
@@ -723,7 +755,7 @@ function ReadingRegistration({
     }
 
     if (!editing) {
-      stashedRegistration.current = { form, meterReviewConfirmed, photoUri };
+      stashedRegistration.current = { form, meterReviewConfirmed, photoUri, location };
     } else if (photoUri && photoUri !== editing.photoUri) {
       deleteReadingPhoto(photoUri);
     }
@@ -732,6 +764,7 @@ function ReadingRegistration({
     setForm(toFormInput(reading));
     setMeterReviewConfirmed(reading.meterReviewConfirmed);
     setPhotoUri(reading.photoUri);
+    setLocation(reading.location);
     setFeedback(null);
   };
 
@@ -757,6 +790,7 @@ function ReadingRegistration({
         details: validation.details,
         meterReviewConfirmed,
         photoUri,
+        location,
         isOnline: correctedOnline,
         correctedAt: new Date(),
       });
@@ -821,12 +855,14 @@ function ReadingRegistration({
         isOnline: savedOnline,
         meterReviewConfirmed,
         photoUri,
+        location,
       });
       const saved = await saveReading(reading);
 
       setForm(EMPTY_FORM);
       setMeterReviewConfirmed(false);
       setPhotoUri(null);
+      setLocation(null);
       flashSaved();
       setFeedback({ status: 'saved', reading: saved });
       void refreshReadings(saved);
@@ -941,6 +977,15 @@ function ReadingRegistration({
               photoUri={photoUri}
               required={photoRequired}
               onCapture={handleCapture}
+            />
+          </RevealSection>
+
+          {/* El mapa y el GPS se activan solo después de elegir el estado del medidor. */}
+          <RevealSection visible={form.condition !== null}>
+            <ReadingLocationMap
+              key={editing ? `correction-${editing.id}` : 'registration'}
+              location={location}
+              onChange={updateLocation}
             />
           </RevealSection>
 
@@ -1275,6 +1320,7 @@ function SendingStatus({ reading, isSyncing }: { reading: MeterReading; isSyncin
     : !isOnline
       ? {
           Icon: CloudOff,
+          animation: 'cloud-sync' as const,
           color: theme.warningForeground,
           title: 'Guardado en el teléfono',
           detail: 'Sin conexión. Se enviará automáticamente al recuperar la conexión.',
@@ -1300,10 +1346,15 @@ function SendingStatus({ reading, isSyncing }: { reading: MeterReading; isSyncin
       className="border-t-[0.5px] pt-4 border-t-border">
       <FieldMessage key={status.title}>
         <View className="flex-row items-start gap-2">
-          {Icon ? (
+          {status.animation === 'cloud-sync' ? (
+            <CloudSyncAnimation
+              size={24}
+              colors={{ primary: theme.accent, secondary: theme.text, base: theme.backgroundSelected }}
+            />
+          ) : Icon ? (
             <Icon color={status.color} size={20} />
           ) : (
-            <ActivityIndicator color={status.color} size="small" />
+            <WaterLoadingAnimation size={24} />
           )}
           <View className="flex-1">
             <ThemedText type="caption" themeColor="textSecondary">
@@ -1349,9 +1400,7 @@ function SavedReadingCard({
         accessibilityLiveRegion="polite"
         className="border-[1px] rounded-md overflow-hidden bg-background border-border">
         <View className="flex-row items-center gap-2 px-4 py-4 bg-success-background">
-          <Animated.View entering={SuccessKeyframe}>
-            <CircleCheck color={theme.successForeground} size={24} strokeWidth={2.25} />
-          </Animated.View>
+          <SuccessAnimation size={32} />
           <ThemedText type="smallBold" className="flex-1 text-[16px] leading-[22px] text-success-foreground">
             {title}
           </ThemedText>
@@ -1448,6 +1497,11 @@ function ReadingItem({
     () => getReadingMonth(new Date(reading.recordedAt)) === getReadingMonth(new Date()),
   );
   const expanded = isOpen || isEditing;
+  // El mapa del registro se carga la primera vez que se abre, no por cada registro de la lista.
+  const [hasBeenExpanded, setHasBeenExpanded] = useState(expanded);
+  if (expanded && !hasBeenExpanded) {
+    setHasBeenExpanded(true);
+  }
   const isSent = reading.syncStatus === 'sent' && reading.sentAt !== null;
   const ConditionIcon = CONDITION_ICONS[reading.condition];
   const conditionTone = {
@@ -1595,6 +1649,19 @@ function ReadingItem({
               source={{ uri: reading.photoUri }}
               className="w-full rounded-sm aspect-[4/3]"
             />
+          </View>
+        )}
+
+        {reading.location && (
+          <View className="gap-2">
+            <View className="flex-row items-center gap-[6px]">
+              <MapPin color={theme.textSecondary} size={14} />
+              <ThemedText type="caption" themeColor="infoForeground">
+                UBICACIÓN DEL MEDIDOR
+              </ThemedText>
+            </View>
+            {hasBeenExpanded && <LocationMapPreview location={reading.location} />}
+            <LocationSummary location={reading.location} />
           </View>
         )}
       </View>

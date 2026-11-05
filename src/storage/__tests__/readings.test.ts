@@ -32,6 +32,13 @@ const pendingReading = {
   consumptionCheck: 'normal' as const,
   meterReviewConfirmed: false,
   photoUri: null,
+  location: {
+    latitude: -0.180653,
+    longitude: -78.467834,
+    accuracy: 8,
+    source: 'gps' as const,
+    capturedAt: '2026-10-27T15:29:00.000Z',
+  },
 };
 
 const pendingRow = {
@@ -53,6 +60,11 @@ const pendingRow = {
   consumption_check: 'normal',
   meter_review_confirmed: 0,
   photo_uri: null,
+  latitude: -0.180653,
+  longitude: -78.467834,
+  location_accuracy: 8,
+  location_source: 'gps',
+  location_captured_at: '2026-10-27T15:29:00.000Z',
 };
 
 const TEST_UUID = '3f2b8c1e-5a4d-4e6f-9b7a-1c2d3e4f5a6b';
@@ -69,7 +81,7 @@ beforeEach(() => {
     .mockReset()
     .mockImplementation(async (sql: string) =>
       sql.startsWith('PRAGMA')
-        ? { user_version: 6 }
+        ? { user_version: 7 }
         : sql.includes('AS uuid')
           ? { uuid: TEST_UUID }
           : null,
@@ -103,8 +115,8 @@ describe('readings migrations', () => {
     );
     expect(database.execAsync).toHaveBeenCalledWith('PRAGMA user_version = 3');
     expect(database.execAsync).toHaveBeenCalledWith('PRAGMA user_version = 4');
-    expect(database.execAsync).toHaveBeenLastCalledWith('PRAGMA user_version = 6');
-    expect(database.withTransactionAsync).toHaveBeenCalledTimes(6);
+    expect(database.execAsync).toHaveBeenLastCalledWith('PRAGMA user_version = 7');
+    expect(database.withTransactionAsync).toHaveBeenCalledTimes(7);
   });
 
   it('conserva las lecturas de HU-004 con sus ids y estado normal', async () => {
@@ -180,6 +192,11 @@ describe('readings storage', () => {
       0,
       null,
       '3f2b8c1e-5a4d-4e6f-9b7a-1c2d3e4f5a6b',
+      -0.180653,
+      -78.467834,
+      8,
+      'gps',
+      '2026-10-27T15:29:00.000Z',
     );
   });
 
@@ -196,7 +213,7 @@ describe('readings storage', () => {
       photoUri,
     });
 
-    expect(database.runAsync.mock.calls[0].slice(-6, -1)).toEqual([
+    expect(database.runAsync.mock.calls[0].slice(-11, -6)).toEqual([
       18.5,
       80,
       'elevated',
@@ -341,7 +358,7 @@ describe('HU-008: captura pendiente', () => {
   });
 
   it('recupera la captura del técnico con su ficha guardada', async () => {
-    database.getFirstAsync.mockResolvedValueOnce({ user_version: 6 }).mockResolvedValue({
+    database.getFirstAsync.mockResolvedValueOnce({ user_version: 7 }).mockResolvedValue({
       employee_code: 'EPM-1001',
       meter_digits: '123456',
       condition: 'damaged',
@@ -351,6 +368,7 @@ describe('HU-008: captura pendiente', () => {
       meter_review_confirmed: 0,
       photo_uri: 'file:///documents/reading-photos/MED-123456-1.jpg',
       meter_json: JSON.stringify(meter),
+      location_json: JSON.stringify(pendingReading.location),
       updated_at: '2026-10-27T15:30:00.000Z',
     });
 
@@ -365,6 +383,7 @@ describe('HU-008: captura pendiente', () => {
       },
       meterReviewConfirmed: false,
       photoUri: 'file:///documents/reading-photos/MED-123456-1.jpg',
+      location: pendingReading.location,
       meter,
       updatedAt: '2026-10-27T15:30:00.000Z',
     });
@@ -376,7 +395,7 @@ describe('HU-008: captura pendiente', () => {
 
   it('al cambiar el código reinicia la captura y devuelve la foto abandonada', async () => {
     database.getFirstAsync
-      .mockResolvedValueOnce({ user_version: 6 })
+      .mockResolvedValueOnce({ user_version: 7 })
       .mockResolvedValue({ meter_digits: '123456', photo_uri: 'file:///old.jpg' });
     database.runAsync.mockResolvedValue({ lastInsertRowId: 0, changes: 1 });
 
@@ -393,7 +412,7 @@ describe('HU-008: captura pendiente', () => {
 
   it('al descartar elimina la captura y devuelve su foto', async () => {
     database.getFirstAsync
-      .mockResolvedValueOnce({ user_version: 6 })
+      .mockResolvedValueOnce({ user_version: 7 })
       .mockResolvedValue({ photo_uri: 'file:///draft.jpg' });
     database.runAsync.mockResolvedValue({ lastInsertRowId: 0, changes: 1 });
 
@@ -421,7 +440,7 @@ describe('HU-009: estado de envío', () => {
   });
 
   it('resume las lecturas enviadas y pendientes del técnico en el mes', async () => {
-    database.getFirstAsync.mockResolvedValueOnce({ user_version: 6 });
+    database.getFirstAsync.mockResolvedValueOnce({ user_version: 7 });
     database.getAllAsync.mockResolvedValueOnce([
       { sync_status: 'sent', count: 3 },
       { sync_status: 'pending', count: 1 },
@@ -439,7 +458,7 @@ describe('HU-009: estado de envío', () => {
   });
 
   it('cuenta los registros pendientes de envío del técnico', async () => {
-    database.getFirstAsync.mockResolvedValueOnce({ user_version: 6 }).mockResolvedValue({ count: 2 });
+    database.getFirstAsync.mockResolvedValueOnce({ user_version: 7 }).mockResolvedValue({ count: 2 });
 
     await expect(readings.countUnsentReadings('EPM-1001')).resolves.toBe(2);
   });
@@ -448,7 +467,7 @@ describe('HU-009: estado de envío', () => {
 describe('HU-010', () => {
   it('CA-03: no registra dos veces el mismo medidor en el mismo mes', async () => {
     database.getFirstAsync.mockImplementation(async (sql: string) =>
-      sql.startsWith('PRAGMA') ? { user_version: 6 } : { id: 9 },
+      sql.startsWith('PRAGMA') ? { user_version: 7 } : { id: 9 },
     );
 
     await expect(readings.saveReading(pendingReading)).rejects.toThrow(
@@ -462,21 +481,168 @@ describe('HU-010', () => {
     expect(database.runAsync).not.toHaveBeenCalled();
   });
 
+  const corrected = {
+    ...pendingReading,
+    id: 3,
+    readingUuid: TEST_UUID,
+    syncStatus: 'pending' as const,
+    sentAt: null,
+    updatedAt: '2026-10-28T13:00:00.000Z',
+  };
+  const storedLocation = {
+    latitude: pendingRow.latitude,
+    longitude: pendingRow.longitude,
+    location_accuracy: pendingRow.location_accuracy,
+    location_source: pendingRow.location_source,
+    location_captured_at: pendingRow.location_captured_at,
+  };
+
+  function mockStoredLocation(row: typeof storedLocation | null) {
+    database.getFirstAsync.mockImplementation(async (sql: string) =>
+      sql.startsWith('PRAGMA') ? { user_version: 7 } : row,
+    );
+  }
+
   it('CA-02: no guarda la corrección de un registro ya enviado', async () => {
+    mockStoredLocation(null);
+
+    await expect(readings.updateReading(corrected)).rejects.toThrow(
+      'Un registro enviado no se puede corregir.',
+    );
+    expect(database.getFirstAsync).toHaveBeenCalledWith(
+      expect.stringContaining("WHERE id = ? AND sync_status = 'pending'"),
+      3,
+    );
+    expect(database.runAsync).not.toHaveBeenCalled();
+  });
+
+  it('CA-02: no guarda la corrección si el registro se envió mientras se guardaba', async () => {
+    mockStoredLocation(storedLocation);
     database.runAsync.mockResolvedValue({ lastInsertRowId: 0, changes: 0 });
 
-    await expect(
-      readings.updateReading({
-        ...pendingReading,
-        id: 3,
-        readingUuid: TEST_UUID,
-        syncStatus: 'pending',
-        sentAt: null,
-        updatedAt: '2026-10-28T13:00:00.000Z',
-      }),
-    ).rejects.toThrow('Un registro enviado no se puede corregir.');
+    await expect(readings.updateReading(corrected)).rejects.toThrow(
+      'Un registro enviado no se puede corregir.',
+    );
     const [sql, ...params] = database.runAsync.mock.calls[0];
     expect(sql).toContain("WHERE id = ? AND sync_status = 'pending'");
     expect(params.at(-1)).toBe(3);
+    expect(database.runAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('guarda la nueva ubicación y conserva la anterior en el historial', async () => {
+    mockStoredLocation(storedLocation);
+    database.runAsync.mockResolvedValue({ lastInsertRowId: 1, changes: 1 });
+    const manual = {
+      latitude: -0.1811,
+      longitude: -78.4681,
+      accuracy: null,
+      source: 'manual' as const,
+      capturedAt: '2026-10-28T12:59:00.000Z',
+    };
+
+    await readings.updateReading({ ...corrected, location: manual });
+
+    expect(database.withTransactionAsync).toHaveBeenCalledTimes(1);
+    expect(database.runAsync.mock.calls[0].slice(-6)).toEqual([
+      -0.1811,
+      -78.4681,
+      null,
+      'manual',
+      '2026-10-28T12:59:00.000Z',
+      3,
+    ]);
+    expect(database.runAsync).toHaveBeenLastCalledWith(
+      expect.stringContaining('INSERT INTO reading_location_history'),
+      3,
+      -0.180653,
+      -78.467834,
+      8,
+      'gps',
+      '2026-10-27T15:29:00.000Z',
+      -0.1811,
+      -78.4681,
+      null,
+      'manual',
+      '2026-10-28T12:59:00.000Z',
+      '2026-10-28T13:00:00.000Z',
+    );
+  });
+
+  it('no agrega historial si la ubicación no cambió', async () => {
+    mockStoredLocation(storedLocation);
+    database.runAsync.mockResolvedValue({ lastInsertRowId: 0, changes: 1 });
+
+    await readings.updateReading(corrected);
+
+    expect(database.runAsync).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ubicación del medidor', () => {
+  it('v7: añade la ubicación sin modificar los registros existentes', async () => {
+    database.getFirstAsync.mockResolvedValue({ user_version: 6 });
+    database.getAllAsync.mockResolvedValue([]);
+
+    await readings.listMeterReadings('EPM-1001', 'MED-123456');
+
+    const migration = database.execAsync.mock.calls[0][0] as string;
+    expect(migration).not.toMatch(/DROP TABLE|DELETE|UPDATE/);
+    expect(migration).toContain('ALTER TABLE meter_readings ADD COLUMN latitude REAL');
+    expect(migration).toContain('ALTER TABLE reading_drafts ADD COLUMN location_json TEXT');
+    expect(migration).toContain('CREATE TABLE reading_location_history');
+    expect(database.execAsync).toHaveBeenCalledWith('PRAGMA user_version = 7');
+  });
+
+  it('recupera los registros anteriores sin ubicación', async () => {
+    database.getAllAsync.mockResolvedValue([
+      {
+        ...pendingRow,
+        latitude: null,
+        longitude: null,
+        location_accuracy: null,
+        location_source: null,
+        location_captured_at: null,
+      },
+    ]);
+
+    const [reading] = await readings.listMeterReadings('EPM-1001', 'MED-123456');
+
+    expect(reading.location).toBeNull();
+  });
+
+  it('lista el historial de ubicación de un registro en orden', async () => {
+    database.getAllAsync.mockResolvedValue([
+      {
+        previous_latitude: -0.180653,
+        previous_longitude: -78.467834,
+        previous_accuracy: 8,
+        previous_source: 'gps',
+        previous_captured_at: '2026-10-27T15:29:00.000Z',
+        latitude: -0.1811,
+        longitude: -78.4681,
+        accuracy: null,
+        source: 'manual',
+        captured_at: '2026-10-28T12:59:00.000Z',
+        changed_at: '2026-10-28T13:00:00.000Z',
+      },
+    ]);
+
+    await expect(readings.listReadingLocationHistory(3)).resolves.toEqual([
+      {
+        previous: pendingReading.location,
+        next: {
+          latitude: -0.1811,
+          longitude: -78.4681,
+          accuracy: null,
+          source: 'manual',
+          capturedAt: '2026-10-28T12:59:00.000Z',
+        },
+        changedAt: '2026-10-28T13:00:00.000Z',
+      },
+    ]);
+    expect(database.getAllAsync).toHaveBeenCalledWith(
+      expect.stringContaining('WHERE reading_id = ? ORDER BY id'),
+      3,
+    );
   });
 });
